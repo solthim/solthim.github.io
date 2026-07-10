@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>인건비 신고 도우미</title>
-<link rel="manifest" href="/manifest.json">
+<link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e9e50">
-<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="인건비">
@@ -725,7 +725,7 @@ async function submit() {
 
 // ==== PWA ====
 // 서비스 워커 등록 (설치 가능 조건)
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 // 토큰 링크로 접속했으면 설치 후에도 같은 링크가 열리도록 manifest에 알려줌 (서버가 처리)
 if (token) {
   const mf = document.querySelector('link[rel="manifest"]');
