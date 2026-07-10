@@ -111,8 +111,10 @@
   .emp:first-child { border-top: 0; }
   .emp:active { background: #fafbf9; }
   .emp .mid { flex: 1; min-width: 0; }
-  .emp .nrow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
-  .emp .name { font-weight: 800; font-size: 19px; color: var(--ink); letter-spacing: -.01em; }
+  .namebox { display: inline-block; background: var(--ink); color: #fff; font-weight: 800;
+             font-size: 17px; padding: 7px 15px; border-radius: 11px; letter-spacing: -.01em; }
+  .emp .chips { margin-top: 8px; }
+  .ytd { font-size: 13px; font-weight: 700; color: var(--body-c); margin-top: 6px; }
   .emp .right { text-align: right; flex: none; }
   .emp .pay { font-weight: 800; font-size: 15.5px; color: var(--ink); }
   .emp .arrow { color: #c3cac4; margin-left: 2px; font-weight: 400; }
@@ -503,13 +505,15 @@ function renderSummary() {
     if (e.hireDate && e.hireDate.startsWith(snap.targetMonth)) dateChips += `<span class="chip c-join">${fmtMD(e.hireDate)} 입사</span>`;
     if (e.leaveDate && e.leaveDate.startsWith(snap.targetMonth)) dateChips += `<span class="chip c-leave">${fmtMD(e.leaveDate)} 퇴사</span>`;
     let detail = '';
-    if (e.hourly) detail += `<p class="sub num">${e.hourly.hours}시간 × ${e.hourly.wage.toLocaleString('ko-KR')}원 · 근무일 ${e.hourly.workDays}일</p>`;
-    if (e.proration) detail += `<p class="sub num">재직 ${e.proration.days}일 / ${e.proration.monthDays}일 일할계산 적용</p>`;
-    (e.allowances || []).forEach(a => { detail += `<p class="sub num">${a.name} +${won(a.amount)}</p>`; });
+    if (e.hourly) detail += `<p class="sub num">근무 급여: ${e.hourly.hours}시간 × ${e.hourly.wage.toLocaleString('ko-KR')}원 = ${won(e.hourly.hours * e.hourly.wage)} (근무일 ${e.hourly.workDays}일)</p>`;
+    if (e.proration) detail += `<p class="sub num">월급 일할계산: 재직 ${e.proration.days}일 / ${e.proration.monthDays}일${e.baseMonthPay ? ` (기준 월급 ${won(e.baseMonthPay)})` : ''}</p>`;
+    (e.allowances || []).forEach(a => { detail += `<p class="sub num">+ ${a.name} ${won(a.amount)}</p>`; });
     return `<div class="emp" data-i="${i}">
       <div class="mid">
-        <div class="nrow"><span class="name">${e.name}</span>${typeChip(e.payType)}${insChip(e.insurance)}${dateChips}</div>
-        ${detail}<p class="sub num">올해 총급여 ${won(e.yearPay)}</p>
+        <div><span class="namebox">${e.name}</span></div>
+        <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}${dateChips}</div>
+        <p class="ytd num">올해 총급여 ${won(e.yearPay)}</p>
+        ${detail}
       </div>
       <div class="right"><span class="pay">${won(e.monthPay)}</span><span class="arrow">›</span></div>
     </div>`;
@@ -524,7 +528,8 @@ let pendingEmps = [], addType = 'hourly';
 function renderPending() {
   $('pend-list').innerHTML = pendingEmps.map((p, i) => `<div class="emp" data-i="${i}">
     <div class="mid">
-      <div class="nrow"><span class="name">${p.name}</span>${typeChip(p.payType)}<span class="chip c-wait">등록 대기</span></div>
+      <div><span class="namebox">${p.name}</span></div>
+      <div class="chips">${typeChip(p.payType)}<span class="chip c-wait">등록 대기</span></div>
       <p class="sub">근무 입력을 제출하면 담당자에게 등록 요청됩니다.</p>
     </div>
     <div class="right"><span class="arrow">›</span></div>
