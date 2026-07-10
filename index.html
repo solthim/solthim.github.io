@@ -222,6 +222,12 @@
             <button id="add-hourly" class="on">시급제</button>
             <button id="add-monthly">월급제</button>
           </div>
+          <label>소득 구분</label>
+          <div class="mode">
+            <button id="add-it-earned" class="on">근로</button>
+            <button id="add-it-daily">일용</button>
+            <button id="add-it-biz">사업</button>
+          </div>
           <label>입사일 — 숫자만 쭉 입력하세요 (예: 2026 07 15)</label>
           <div class="dgroup">
             <input id="add-hire-y" inputmode="numeric" maxlength="4" placeholder="연도">
@@ -265,6 +271,12 @@
         <div class="mode">
           <button id="pt-monthly">월급제</button>
           <button id="pt-hourly">시급제</button>
+        </div>
+        <label>소득 구분</label>
+        <div class="mode">
+          <button id="it-earned">근로</button>
+          <button id="it-daily">일용</button>
+          <button id="it-biz">사업</button>
         </div>
 
         <!-- 월급제 -->
@@ -418,6 +430,15 @@ const HOLIDAYS = new Set([
 // ---- 유형 칩 ----
 const typeChip = t => t === 'hourly'
   ? '<span class="chip c-hour">시급제</span>' : '<span class="chip c-month">월급제</span>';
+const incomeChip = s => {
+  const cls = s === '사업' ? 'c-biz' : s === '일용' ? 'c-insE' : 'c-ins4';
+  return `<span class="chip ${cls}">${s}</span>`;
+};
+// 발행 데이터에서 소득 구분 기본값 유추
+const guessIncome = emp => emp.incomeType
+  || (emp.insurance === '사업소득' ? '사업'
+    : (emp.payType === 'hourly' && (emp.insurance === '고용·산재' || emp.insurance === '고용산재')) ? '일용'
+    : '근로');
 const insChip = s => {
   const cls = s === '4대보험' ? 'c-ins4'
     : (s === '고용·산재' || s === '고용산재') ? 'c-insE'
@@ -534,12 +555,20 @@ function renderSummary() {
 $('month-sel').onchange = () => api({ month: $('month-sel').value });
 
 // ---- 직원 추가 (사원정보 입력) ----
-let pendingEmps = [], addType = 'hourly';
+let pendingEmps = [], addType = 'hourly', addIncome = '근로';
+['earned', 'daily', 'biz'].forEach(k => {
+  const label = k === 'earned' ? '근로' : k === 'daily' ? '일용' : '사업';
+  $('add-it-' + k).onclick = () => {
+    addIncome = label;
+    ['earned', 'daily', 'biz'].forEach(x =>
+      $('add-it-' + x).classList.toggle('on', x === k));
+  };
+});
 function renderPending() {
   $('pend-list').innerHTML = pendingEmps.map((p, i) => `<div class="emp" data-i="${i}">
     <div class="mid">
       <div><span class="namebox">${p.name}</span></div>
-      <div class="chips">${typeChip(p.payType)}<span class="chip c-wait">등록 대기</span></div>
+      <div class="chips">${typeChip(p.payType)}${incomeChip(p.incomeType || '근로')}<span class="chip c-wait">등록 대기</span></div>
       <p class="sub">근무 입력을 제출하면 담당자에게 등록 요청됩니다.</p>
     </div>
     <div class="right"><span class="arrow">›</span></div>
@@ -564,7 +593,7 @@ $('btn-add-ok').onclick = () => {
   if (!rh.ok || !rl.ok) { m.className = 'msg err'; m.textContent = '날짜를 확인해 주세요. 연도 4자리, 월, 일 순서로 숫자만 입력합니다.'; return; }
   const hire = rh.v, leave = rl.v;
   if (hire && leave && leave < hire) { m.className = 'msg err'; m.textContent = '퇴사일이 입사일보다 빠릅니다.'; return; }
-  const emp = { name, payType: addType, pending: true,
+  const emp = { name, payType: addType, incomeType: addIncome, pending: true,
     hireDate: hire || undefined, leaveDate: leave || undefined };
   pendingEmps.push(emp);
   $('add-name').value = ''; setDate('add-hire', ''); setDate('add-leave', '');
@@ -581,7 +610,7 @@ function draftFor(emp) {
   const key = emp.name + '@' + curMonth();
   if (!drafts[key]) {
     drafts[key] = {
-      type: emp.payType,
+      type: emp.payType, income: guessIncome(emp),
       days: {}, allowances: [], memo: '', mode: 'total',
       wage: emp.hourly ? emp.hourly.wage : 0,
       mpay: emp.payType === 'monthly' ? (emp.baseMonthPay || emp.monthPay || 0) : 0,
@@ -593,7 +622,7 @@ function draftFor(emp) {
 function saveDraft() {
   if (!currentEmp) return;
   const d = draftFor(currentEmp);
-  d.type = payMode;
+  d.type = payMode; d.income = incomeType;
   d.wage = numOf($('wage')); d.mpay = numOf($('mpay'));
   d.memo = $('memo').value; d.mode = inputMode;
   d.hire = getDate('in-hire'); d.leave = getDate('in-leave');
@@ -602,7 +631,7 @@ function loadDraftIntoUI() {
   const emp = currentEmp;
   const d = draftFor(emp);
   days = d.days; allowances = d.allowances; inputMode = d.mode;
-  payMode = d.type;
+  payMode = d.type; incomeType = d.income;
   selDays.clear();
   $('wage').value = d.wage ? d.wage.toLocaleString('ko-KR') : '';
   $('mpay').value = d.mpay ? d.mpay.toLocaleString('ko-KR') : '';
@@ -642,7 +671,7 @@ window.addEventListener('popstate', () => {
 });
 
 // ---- 근무 입력 ----
-let calBuilt = false, inputMode = 'total', payMode = 'hourly';
+let calBuilt = false, inputMode = 'total', payMode = 'hourly', incomeType = '근로';
 let days = {}, selDays = new Set(), allowances = [], cells = {};
 // 월급제 + 이달 퇴사일이 있으면 그날까지 월급, 다음 날부터 시급 근무 입력 가능
 const swDay = () => {
@@ -684,6 +713,9 @@ function buildCal() {
   $('mode-total').onclick = () => { inputMode = 'total'; updateForm(); };
   $('pt-monthly').onclick = () => { payMode = 'monthly'; updateForm(); };
   $('pt-hourly').onclick = () => { payMode = 'hourly'; updateForm(); };
+  $('it-earned').onclick = () => { incomeType = '근로'; updateForm(); };
+  $('it-daily').onclick = () => { incomeType = '일용'; updateForm(); };
+  $('it-biz').onclick = () => { incomeType = '사업'; updateForm(); };
   $('btn-info').onclick = () => {
     const nowHidden = $('sec-info').classList.toggle('hidden');
     $('btn-info').textContent = nowHidden ? '✎ 사원정보 수정 (입사일 · 퇴사일)' : '사원정보 접기';
@@ -721,6 +753,9 @@ function updateForm() {
   const sd = swDay();
   $('pt-monthly').classList.toggle('on', t === 'monthly');
   $('pt-hourly').classList.toggle('on', t === 'hourly');
+  $('it-earned').classList.toggle('on', incomeType === '근로');
+  $('it-daily').classList.toggle('on', incomeType === '일용');
+  $('it-biz').classList.toggle('on', incomeType === '사업');
   $('mode-cal').classList.toggle('on', inputMode === 'calendar');
   $('mode-total').classList.toggle('on', inputMode === 'total');
   $('sec-monthly').classList.toggle('hidden', t === 'hourly');
@@ -825,7 +860,7 @@ async function submit() {
   const hire = rh.v, leave = rl.v;
   if (hire && leave && leave < hire) return showMsg('err', '퇴사일이 입사일보다 빠릅니다. 날짜를 확인해 주세요.');
   const payload = { token, pin, targetMonth: curMonth(), employeeName: currentEmp.name,
-    payType: t, newEmployee: !!currentEmp.pending, allowances, memo,
+    payType: t, incomeType, newEmployee: !!currentEmp.pending, allowances, memo,
     hireDate: hire || null, leaveDate: leave || null };
   const sd = swDay();
   if (t === 'monthly') {
