@@ -300,10 +300,10 @@
           <input id="wage" inputmode="numeric" placeholder="10,030">
           <label>근무시간 입력 방식</label>
           <div class="mode">
-            <button id="mode-cal" class="on">달력으로 입력</button>
-            <button id="mode-total">총 시간만 입력</button>
+            <button id="mode-total" class="on">총 시간만 입력</button>
+            <button id="mode-cal">달력으로 입력</button>
           </div>
-          <div id="sec-cal">
+          <div id="sec-cal" class="hidden">
             <label>근무한 날짜를 눌러 선택하세요 (여러 날 가능)</label>
             <div id="cal"></div>
             <div class="row" style="margin-top:10px;">
@@ -312,7 +312,7 @@
               <button id="btn-apply" class="plain" style="flex:1;">선택한 날짜에 적용</button>
             </div>
           </div>
-          <div id="sec-total" class="hidden">
+          <div id="sec-total">
             <div class="row" style="margin-top:4px;">
               <div style="flex:1;">
                 <label>이번 달 총 근무시간</label>
@@ -582,7 +582,7 @@ function draftFor(emp) {
   if (!drafts[key]) {
     drafts[key] = {
       type: emp.payType,
-      days: {}, allowances: [], memo: '', mode: 'calendar',
+      days: {}, allowances: [], memo: '', mode: 'total',
       wage: emp.hourly ? emp.hourly.wage : 0,
       mpay: emp.payType === 'monthly' ? (emp.baseMonthPay || emp.monthPay || 0) : 0,
       hire: emp.hireDate || '', leave: emp.leaveDate || ''
@@ -642,7 +642,7 @@ window.addEventListener('popstate', () => {
 });
 
 // ---- 근무 입력 ----
-let calBuilt = false, inputMode = 'calendar', payMode = 'hourly';
+let calBuilt = false, inputMode = 'total', payMode = 'hourly';
 let days = {}, selDays = new Set(), allowances = [], cells = {};
 // 월급제 + 이달 퇴사일이 있으면 그날까지 월급, 다음 날부터 시급 근무 입력 가능
 const swDay = () => {
