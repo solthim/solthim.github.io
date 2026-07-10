@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>우리 회사 인건비 - 솔팀</title>
+<title>인건비 신고 도우미</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#1e9e50">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="인건비">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root {
@@ -130,6 +136,19 @@
   .msg.err { background: #fdecea; color: #a1332a; display: block; }
   .msg.info { background: #e2f5e9; color: #157a3d; display: block; }
   .hidden { display: none !important; }
+
+  /* 카카오톡 안내 화면 + 설치 배너 */
+  #kakao-guide { position: fixed; inset: 0; z-index: 100; background: #fff;
+                 padding: 44px 22px; text-align: center; overflow-y: auto; }
+  #kakao-guide h2 { font-size: 25px; font-weight: 800; color: var(--ink);
+                    line-height: 1.4; margin: 18px 0 10px; }
+  #kakao-guide p { font-size: 19px; line-height: 1.6; color: var(--body-c); }
+  #kakao-guide .step { background: #f4f5f2; border-radius: 18px; padding: 18px 16px;
+                       margin: 12px 0; font-size: 19px; font-weight: 600;
+                       text-align: left; line-height: 1.5; color: var(--ink); }
+  #install-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 90;
+                    background: #fff; border-radius: 18px; max-width: 536px; margin: 0 auto;
+                    box-shadow: 0 8px 28px rgba(0, 0, 0, .2); padding: 16px; display: none; }
   #v-sum, #v-in { animation: rise .22s ease-out; }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   @media (prefers-reduced-motion: reduce) {
@@ -302,6 +321,47 @@
            달력에서 입력된 날짜에 0시간을 적용하면 지워집니다.</p>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- 카카오톡 인앱 브라우저 안내 -->
+<div id="kakao-guide" class="hidden">
+  <div style="max-width:420px; margin:0 auto;">
+    <span class="logo" style="width:72px; height:72px; font-size:30px; border-radius:22px;">솔</span>
+    <h2>카카오톡으로 열면<br>앱 설치가 안 돼요</h2>
+    <p>아래 순서대로 눌러서<br><b>인터넷 브라우저로 열어 주세요</b></p>
+    <div id="kakao-steps-ios" class="hidden">
+      <div class="step">① 오른쪽 아래의 <b style="font-size:24px;">⋯</b> 버튼을 누르세요</div>
+      <div class="step">② <b>"다른 브라우저로 열기"</b>를 누르세요</div>
+    </div>
+    <div id="kakao-steps-android" class="hidden">
+      <p style="font-size:17px; color:var(--mute);">크롬 브라우저가 자동으로 열립니다. 잠시만 기다려 주세요.</p>
+      <div class="step">자동으로 안 열리면:<br>오른쪽 아래 <b style="font-size:24px;">⋯</b> 버튼 → <b>"다른 브라우저로 열기"</b></div>
+    </div>
+    <a id="kakao-open" href="#" style="display:block; background:var(--green); color:#fff;
+       border-radius:16px; padding:19px; font-size:20px; font-weight:800;
+       text-decoration:none; margin-top:18px; box-shadow:0 6px 16px rgba(30,158,80,.3);">여기를 눌러 바로 열기</a>
+  </div>
+</div>
+
+<!-- 홈 화면 설치 안내 배너 -->
+<div id="install-banner">
+  <div id="ib-android" class="hidden">
+    <p style="font-size:17px; font-weight:800; color:var(--ink); margin-bottom:4px;">휴대폰에 앱으로 설치할 수 있어요</p>
+    <p class="muted" style="font-size:14.5px;">설치하면 다음부터 홈 화면에서 바로 열 수 있습니다.</p>
+    <div class="row" style="margin-top:12px;">
+      <button id="ib-close1" class="plain" style="flex:1;">나중에</button>
+      <button id="ib-install" class="primary" style="flex:2; font-size:16px;">앱으로 설치하기</button>
+    </div>
+  </div>
+  <div id="ib-ios" class="hidden">
+    <p style="font-size:17px; font-weight:800; color:var(--ink); margin-bottom:8px;">홈 화면에 앱으로 추가하는 방법</p>
+    <p style="font-size:16px; line-height:1.7; color:var(--body-c);">
+      ① 화면 아래 가운데의 <b>공유 버튼</b>
+      <span style="border:1.5px solid #9aa39c; border-radius:6px; padding:1px 8px; font-weight:700;">↑</span> 을 누르세요<br>
+      ② 아래로 내려서 <b>"홈 화면에 추가"</b>를 누르세요
+    </p>
+    <button id="ib-close2" class="plain" style="width:100%; margin-top:12px;">닫기</button>
   </div>
 </div>
 
@@ -661,6 +721,65 @@ async function submit() {
     const j = await r.json();
     showMsg(r.ok ? 'info' : 'err', r.ok ? '제출되었습니다. 담당 회계사가 확인한 뒤 반영합니다.' : (j.error || '오류가 발생했습니다.'));
   } catch (e) { showMsg('err', '연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'); }
+}
+
+// ==== PWA ====
+// 서비스 워커 등록 (설치 가능 조건)
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {});
+// 토큰 링크로 접속했으면 설치 후에도 같은 링크가 열리도록 manifest에 알려줌 (서버가 처리)
+if (token) {
+  const mf = document.querySelector('link[rel="manifest"]');
+  if (mf) mf.href = '/manifest.json?start=' + encodeURIComponent('/s/' + token);
+}
+
+const UA = navigator.userAgent;
+const isKakao = /KAKAOTALK/i.test(UA);
+const isAndroid = /Android/i.test(UA);
+const isIOS = /iPhone|iPad|iPod/i.test(UA);
+const isStandalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+
+// ---- 카카오톡 인앱 브라우저: 설치가 안 되므로 밖으로 안내 ----
+if (isKakao) {
+  $('kakao-guide').classList.remove('hidden');
+  $('kakao-open').href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href);
+  if (isAndroid) {
+    $('kakao-steps-android').classList.remove('hidden');
+    const scheme = location.protocol.replace(':', '');
+    location.href = 'intent://' + location.host + location.pathname + location.search
+      + '#Intent;scheme=' + scheme + ';package=com.android.chrome;end';
+  } else {
+    $('kakao-steps-ios').classList.remove('hidden');
+  }
+}
+
+// ---- 홈 화면 설치 안내 배너 ----
+function hideInstallBanner() {
+  $('install-banner').style.display = 'none';
+  localStorage.setItem('hideInstall', '1');
+}
+$('ib-close1').onclick = hideInstallBanner;
+$('ib-close2').onclick = hideInstallBanner;
+const bannerAllowed = !isStandalone && !isKakao && localStorage.getItem('hideInstall') !== '1';
+
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {   // 안드로이드 크롬
+  e.preventDefault();
+  deferredPrompt = e;
+  if (bannerAllowed) {
+    $('ib-android').classList.remove('hidden');
+    $('install-banner').style.display = 'block';
+  }
+});
+$('ib-install').onclick = async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt = null;
+  hideInstallBanner();
+};
+if (isIOS && bannerAllowed) {                            // 아이폰 사파리: 수동 안내
+  $('ib-ios').classList.remove('hidden');
+  $('install-banner').style.display = 'block';
 }
 </script>
 </body>
