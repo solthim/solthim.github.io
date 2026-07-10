@@ -95,17 +95,12 @@
 
   /* 직원 행 */
   .emp { display: flex; gap: 12px; align-items: center; border-top: 1px solid #f0f2ef;
-         padding: 13px 0; cursor: pointer; }
+         padding: 14px 0; cursor: pointer; }
   .emp:first-child { border-top: 0; }
   .emp:active { background: #fafbf9; }
-  .av { width: 44px; height: 44px; border-radius: 50%; flex: none; display: flex;
-        align-items: center; justify-content: center; font-weight: 800; font-size: 16px; }
-  .av-month { background: #e7effe; color: #2457c5; }
-  .av-hour  { background: #ffeee2; color: #c05314; }
-  .av-wait  { background: #fff3d6; color: #9a6b00; }
   .emp .mid { flex: 1; min-width: 0; }
-  .emp .name { font-weight: 700; font-size: 16px; color: var(--ink); }
-  .emp .chips { margin-top: 4px; }
+  .emp .nrow { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+  .emp .name { font-weight: 800; font-size: 19px; color: var(--ink); letter-spacing: -.01em; }
   .emp .right { text-align: right; flex: none; }
   .emp .pay { font-weight: 800; font-size: 15.5px; color: var(--ink); }
   .emp .arrow { color: #c3cac4; margin-left: 2px; font-weight: 400; }
@@ -283,8 +278,8 @@
              제출하지 않으면 기존 금액이 유지됩니다.</p>
         </div>
 
-        <button id="btn-info" class="plain" style="width:100%; margin-top:16px; font-size:13.5px; color:#5c665e;">
-          사원정보 (입사일 · 퇴사일) 펼치기</button>
+        <button id="btn-info" class="plain" style="width:100%; margin-top:16px; font-size:14.5px; color:#3c463f;">
+          ✎ 사원정보 수정 (입사일 · 퇴사일)</button>
         <div id="sec-info" class="hidden">
           <div class="row" style="margin-top:4px;">
             <div style="flex:1;">
@@ -461,10 +456,8 @@ function renderSummary() {
     if (e.proration) detail += `<p class="sub num">재직 ${e.proration.days}일 / ${e.proration.monthDays}일 일할계산 적용</p>`;
     (e.allowances || []).forEach(a => { detail += `<p class="sub num">${a.name} +${won(a.amount)}</p>`; });
     return `<div class="emp" data-i="${i}">
-      <div class="av ${e.payType === 'hourly' ? 'av-hour' : 'av-month'}">${e.name.charAt(0)}</div>
       <div class="mid">
-        <div class="name">${e.name}</div>
-        <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}${dateChips}</div>
+        <div class="nrow"><span class="name">${e.name}</span>${typeChip(e.payType)}${insChip(e.insurance)}${dateChips}</div>
         ${detail}<p class="sub num">올해 총급여 ${won(e.yearPay)}</p>
       </div>
       <div class="right"><span class="pay">${won(e.monthPay)}</span><span class="arrow">›</span></div>
@@ -479,10 +472,8 @@ $('month-sel').onchange = () => api({ month: $('month-sel').value });
 let pendingEmps = [], addType = 'hourly';
 function renderPending() {
   $('pend-list').innerHTML = pendingEmps.map((p, i) => `<div class="emp" data-i="${i}">
-    <div class="av av-wait">${p.name.charAt(0)}</div>
     <div class="mid">
-      <div class="name">${p.name}</div>
-      <div class="chips">${typeChip(p.payType)}<span class="chip c-wait">등록 대기</span></div>
+      <div class="nrow"><span class="name">${p.name}</span>${typeChip(p.payType)}<span class="chip c-wait">등록 대기</span></div>
       <p class="sub">근무 입력을 제출하면 담당자에게 등록 요청됩니다.</p>
     </div>
     <div class="right"><span class="arrow">›</span></div>
@@ -549,7 +540,7 @@ function enterInput(emp) {
   $('in-hire').value = d.hire; $('in-leave').value = d.leave;
   const infoOpen = !!emp.pending || (d.hire && d.hire.startsWith(inMonth)) || (d.leave && d.leave.startsWith(inMonth));
   $('sec-info').classList.toggle('hidden', !infoOpen);
-  $('btn-info').textContent = infoOpen ? '사원정보 접기' : '사원정보 (입사일 · 퇴사일) 펼치기';
+  $('btn-info').textContent = infoOpen ? '사원정보 접기' : '✎ 사원정보 수정 (입사일 · 퇴사일)';
   $('in-emp').textContent = emp.name;
   $('in-title').textContent = `${now.getFullYear()}년 ${now.getMonth() + 1}월 근무 입력 · ${emp.payType === 'hourly' ? '시급제' : '월급제'}${emp.pending ? ' · 등록 대기' : ''}`;
   $('in-msg').className = 'msg';
@@ -580,7 +571,7 @@ function buildCal() {
   $('mode-total').onclick = () => { inputMode = 'total'; updateForm(); };
   $('btn-info').onclick = () => {
     const nowHidden = $('sec-info').classList.toggle('hidden');
-    $('btn-info').textContent = nowHidden ? '사원정보 (입사일 · 퇴사일) 펼치기' : '사원정보 접기';
+    $('btn-info').textContent = nowHidden ? '✎ 사원정보 수정 (입사일 · 퇴사일)' : '사원정보 접기';
   };
   ['tot-hrs', 'tot-days', 'in-hire', 'in-leave'].forEach(id => $(id).addEventListener('input', renderInputSummary));
   commaBind($('wage')); commaBind($('aamt')); commaBind($('mpay'));
