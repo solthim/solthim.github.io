@@ -191,6 +191,16 @@
             <button id="add-hourly" class="on">시급제</button>
             <button id="add-monthly">월급제</button>
           </div>
+          <div class="row">
+            <div style="flex:1;">
+              <label>입사일</label>
+              <input id="add-hire" type="date">
+            </div>
+            <div style="flex:1;">
+              <label>퇴사일 (해당 시)</label>
+              <input id="add-leave" type="date">
+            </div>
+          </div>
           <div class="row" style="margin-top:14px;">
             <button id="btn-add-cancel" style="flex:1;">취소</button>
             <button class="primary" id="btn-add-ok" style="flex:1;">추가하고 입력하기</button>
@@ -255,16 +265,21 @@
              제출하지 않으면 기존 금액이 유지됩니다.</p>
         </div>
 
-        <label>입사 · 퇴사 (이번 달 변동이 있을 때만)</label>
-        <div class="row">
-          <div style="flex:1;">
-            <label style="margin-top:0; font-weight:400;">입사일</label>
-            <input id="in-hire" type="date">
+        <button id="btn-info" style="width:100%; margin-top:16px; box-shadow:var(--in);
+                background:#edeff2; color:var(--mute); font-size:13.5px; font-weight:600;">
+          사원정보 (입사일 · 퇴사일) 펼치기</button>
+        <div id="sec-info" class="hidden">
+          <div class="row" style="margin-top:4px;">
+            <div style="flex:1;">
+              <label style="font-weight:400;">입사일</label>
+              <input id="in-hire" type="date">
+            </div>
+            <div style="flex:1;">
+              <label style="font-weight:400;">퇴사일 (해당 시)</label>
+              <input id="in-leave" type="date">
+            </div>
           </div>
-          <div style="flex:1;">
-            <label style="margin-top:0; font-weight:400;">퇴사일</label>
-            <input id="in-leave" type="date">
-          </div>
+          <p class="muted" style="margin-top:7px;">퇴사일을 넣으면 월급제 급여가 자동으로 일할계산됩니다.</p>
         </div>
 
         <label>수당 (급여와 별개 지급분)</label>
@@ -430,9 +445,12 @@ $('btn-add-ok').onclick = () => {
   const name = $('add-name').value.trim();
   if (!/^[가-힣a-zA-Z\s]{1,20}$/.test(name)) { m.className = 'msg err'; m.textContent = '이름은 한글/영문 20자까지입니다.'; return; }
   if (snap.employees.concat(pendingEmps).some(e => e.name === name)) { m.className = 'msg err'; m.textContent = '이미 있는 직원 이름입니다.'; return; }
-  const emp = { name, payType: addType, pending: true };
+  const hire = $('add-hire').value, leave = $('add-leave').value;
+  if (hire && leave && leave < hire) { m.className = 'msg err'; m.textContent = '퇴사일이 입사일보다 빠릅니다.'; return; }
+  const emp = { name, payType: addType, pending: true,
+    hireDate: hire || undefined, leaveDate: leave || undefined };
   pendingEmps.push(emp);
-  $('add-name').value = '';
+  $('add-name').value = ''; $('add-hire').value = ''; $('add-leave').value = '';
   $('add-form').classList.add('hidden'); $('btn-add-emp').classList.remove('hidden');
   renderPending();
   enterInput(emp);
@@ -471,6 +489,9 @@ function enterInput(emp) {
   $('mpay').value = d.mpay ? d.mpay.toLocaleString('ko-KR') : '';
   $('memo').value = d.memo;
   $('in-hire').value = d.hire; $('in-leave').value = d.leave;
+  const infoOpen = !!emp.pending || (d.hire && d.hire.startsWith(inMonth)) || (d.leave && d.leave.startsWith(inMonth));
+  $('sec-info').classList.toggle('hidden', !infoOpen);
+  $('btn-info').textContent = infoOpen ? '사원정보 접기' : '사원정보 (입사일 · 퇴사일) 펼치기';
   $('in-av').textContent = emp.name.charAt(0);
   $('in-av').className = 'av av-big ' + (emp.pending ? 'av-wait' : emp.payType === 'hourly' ? 'av-hour' : 'av-month');
   $('in-emp').textContent = emp.name;
@@ -501,6 +522,10 @@ function buildCal() {
   calBuilt = true;
   $('mode-cal').onclick = () => { inputMode = 'calendar'; updateForm(); };
   $('mode-total').onclick = () => { inputMode = 'total'; updateForm(); };
+  $('btn-info').onclick = () => {
+    const nowHidden = $('sec-info').classList.toggle('hidden');
+    $('btn-info').textContent = nowHidden ? '사원정보 (입사일 · 퇴사일) 펼치기' : '사원정보 접기';
+  };
   ['tot-hrs', 'tot-days', 'in-hire', 'in-leave'].forEach(id => $(id).addEventListener('input', renderInputSummary));
   commaBind($('wage')); commaBind($('aamt')); commaBind($('mpay'));
 
