@@ -134,6 +134,7 @@
             padding: 6px 0; cursor: pointer; user-select: none; font-size: 13px; background: #fff; }
   #cal .d.filled { background: #e2f5e9; border-color: #b9e4c8; }
   #cal .d.sel { border-color: var(--green); box-shadow: 0 0 0 1.5px var(--green); }
+  #cal .d.dis { opacity: .35; cursor: default; }
   #cal .d .num { display: block; font-weight: 600; color: var(--body-c); }
   #cal .d small { display: block; font-size: 11px; min-height: 13px; color: var(--green-deep); font-weight: 700; }
 
@@ -259,9 +260,24 @@
       </div>
       <div class="card">
 
+        <!-- 급여 방식: 달마다 선택 가능, 월중 전환 지원 -->
+        <label style="margin-top:0;">이 달의 급여 방식</label>
+        <div class="mode">
+          <button id="pt-monthly">월급제</button>
+          <button id="pt-hourly">시급제</button>
+          <button id="pt-mixed">월중 전환</button>
+        </div>
+        <div id="sec-switch" class="hidden">
+          <label>며칠까지 월급제인가요?</label>
+          <div class="row">
+            <input id="switch-day" type="number" min="1" max="30" style="width:90px;">
+            <span class="muted">일까지 월급제 → 다음 날부터 시급제</span>
+          </div>
+        </div>
+
         <!-- 시급제 전용 -->
         <div id="sec-hourly">
-          <label style="margin-top:0;">시급 (원)</label>
+          <label>시급 (원)</label>
           <input id="wage" inputmode="numeric" placeholder="10,030">
           <label>근무시간 입력 방식</label>
           <div class="mode">
@@ -293,7 +309,7 @@
 
         <!-- 월급제 전용 -->
         <div id="sec-monthly" class="hidden">
-          <label style="margin-top:0;">이번 달 월급액 (원)</label>
+          <label>이번 달 월급액 (원)</label>
           <input id="mpay" inputmode="numeric" placeholder="2,800,000">
           <p class="muted" style="margin-top:6px;">월급이 바뀌거나 수당이 있는 달에만 제출하면 됩니다.
              제출하지 않으면 기존 금액이 유지됩니다.</p>
@@ -327,9 +343,10 @@
         <label>메모 (선택)</label>
         <input id="memo" maxlength="50" placeholder="주민번호는 적지 마세요 — 저장되지 않습니다">
         <div style="background:#f0f9f2; border-radius:16px; padding:14px 16px; margin:16px 0 0;">
-          <div class="sumline" id="row-days"><span>근무일 · 총 근무시간</span><b id="s-days"></b></div>
-          <div class="sumline hidden" id="row-prorate"><span>재직 기간 (일할계산)</span><b id="s-prorate"></b></div>
-          <div class="sumline"><span id="l-work">근무 급여 (시간 × 시급)</span><b id="s-work"></b></div>
+          <div class="sumline hidden" id="row-mpay"><span id="l-mpay">월급</span><b id="s-mpay"></b></div>
+          <div class="sumline hidden" id="row-prorate"><span>월급 일할계산</span><b id="s-prorate"></b></div>
+          <div class="sumline hidden" id="row-days"><span>근무일 · 총 근무시간</span><b id="s-days"></b></div>
+          <div class="sumline hidden" id="row-work"><span>근무 급여 (시간 × 시급)</span><b id="s-work"></b></div>
           <div class="sumline"><span>수당 합계</span><b id="s-allow"></b></div>
           <div class="sumline total"><span>계산된 급여액</span><span id="s-total"></span></div>
         </div>
@@ -571,6 +588,7 @@ function draftFor(emp) {
   const key = emp.name + '@' + curMonth();
   if (!drafts[key]) {
     drafts[key] = {
+      type: emp.payType, switchDay: '',
       days: {}, allowances: [], memo: '', mode: 'calendar',
       wage: emp.hourly ? emp.hourly.wage : 0,
       mpay: emp.payType === 'monthly' ? (emp.baseMonthPay || emp.monthPay || 0) : 0,
@@ -582,6 +600,7 @@ function draftFor(emp) {
 function saveDraft() {
   if (!currentEmp) return;
   const d = draftFor(currentEmp);
+  d.type = payMode; d.switchDay = $('switch-day').value;
   d.wage = numOf($('wage')); d.mpay = numOf($('mpay'));
   d.memo = $('memo').value; d.mode = inputMode;
   d.hire = getDate('in-hire'); d.leave = getDate('in-leave');
@@ -590,7 +609,9 @@ function loadDraftIntoUI() {
   const emp = currentEmp;
   const d = draftFor(emp);
   days = d.days; allowances = d.allowances; inputMode = d.mode;
+  payMode = d.type;
   selDays.clear();
+  $('switch-day').value = d.switchDay;
   $('wage').value = d.wage ? d.wage.toLocaleString('ko-KR') : '';
   $('mpay').value = d.mpay ? d.mpay.toLocaleString('ko-KR') : '';
   $('memo').value = d.memo;
@@ -599,7 +620,7 @@ function loadDraftIntoUI() {
   $('sec-info').classList.toggle('hidden', !infoOpen);
   $('btn-info').textContent = infoOpen ? '사원정보 접기' : '✎ 사원정보 수정 (입사일 · 퇴사일)';
   $('in-emp').textContent = emp.name;
-  $('in-title').textContent = `${selYear}년 ${selMonth}월 근무 입력 · ${emp.payType === 'hourly' ? '시급제' : '월급제'}${emp.pending ? ' · 등록 대기' : ''}`;
+  $('in-title').textContent = `${selYear}년 ${selMonth}월 근무 입력${emp.pending ? ' · 등록 대기' : ''}`;
   mbtns.forEach((b, i) => b.classList.toggle('on', i + 1 === selMonth));
   rebuildCal();
   updateForm(); renderCal(); renderAllow();
@@ -629,8 +650,9 @@ window.addEventListener('popstate', () => {
 });
 
 // ---- 근무 입력 ----
-let calBuilt = false, inputMode = 'calendar';
+let calBuilt = false, inputMode = 'calendar', payMode = 'hourly';
 let days = {}, selDays = new Set(), allowances = [], cells = {};
+const swDay = () => payMode === 'mixed' ? Math.max(0, Math.min(31, Number($('switch-day').value) || 0)) : 0;
 const now = new Date();
 const selYear = now.getFullYear();
 let selMonth = now.getMonth() + 1;
@@ -651,7 +673,10 @@ function rebuildCal() {
     const cls = (wd === 0 || HOLIDAYS.has(ymd(d))) ? 'sun' : wd === 6 ? 'sat' : '';
     const c = document.createElement('div');
     c.className = 'd'; c.innerHTML = `<span class="num ${cls}">${d}</span><small></small>`;
-    c.onclick = () => { selDays.has(d) ? selDays.delete(d) : selDays.add(d); renderCal(); };
+    c.onclick = () => {
+      if (c.classList.contains('dis')) return;
+      selDays.has(d) ? selDays.delete(d) : selDays.add(d); renderCal();
+    };
     cells[d] = c; cal.appendChild(c);
   }
 }
@@ -660,6 +685,10 @@ function buildCal() {
   calBuilt = true;
   $('mode-cal').onclick = () => { inputMode = 'calendar'; updateForm(); };
   $('mode-total').onclick = () => { inputMode = 'total'; updateForm(); };
+  $('pt-monthly').onclick = () => { payMode = 'monthly'; updateForm(); };
+  $('pt-hourly').onclick = () => { payMode = 'hourly'; updateForm(); };
+  $('pt-mixed').onclick = () => { payMode = 'mixed'; updateForm(); };
+  $('switch-day').addEventListener('input', renderCal);
   $('btn-info').onclick = () => {
     const nowHidden = $('sec-info').classList.toggle('hidden');
     $('btn-info').textContent = nowHidden ? '✎ 사원정보 수정 (입사일 · 퇴사일)' : '사원정보 접기';
@@ -693,24 +722,31 @@ function buildCal() {
 
 function updateForm() {
   if (!currentEmp) return;
-  const t = currentEmp.payType;
+  const t = payMode;
+  $('pt-monthly').classList.toggle('on', t === 'monthly');
+  $('pt-hourly').classList.toggle('on', t === 'hourly');
+  $('pt-mixed').classList.toggle('on', t === 'mixed');
+  $('sec-switch').classList.toggle('hidden', t !== 'mixed');
   $('mode-cal').classList.toggle('on', inputMode === 'calendar');
   $('mode-total').classList.toggle('on', inputMode === 'total');
-  $('sec-hourly').classList.toggle('hidden', t !== 'hourly');
-  $('sec-monthly').classList.toggle('hidden', t !== 'monthly');
+  $('sec-hourly').classList.toggle('hidden', t === 'monthly');
+  $('sec-monthly').classList.toggle('hidden', t === 'hourly');
   $('sec-cal').classList.toggle('hidden', inputMode !== 'calendar');
   $('sec-total').classList.toggle('hidden', inputMode !== 'total');
-  $('row-days').classList.toggle('hidden', t === 'monthly');
-  $('l-work').textContent = t === 'monthly' ? '월급' : '근무 급여 (시간 × 시급)';
+  renderCal();
   renderInputSummary();
 }
 
 function renderCal() {
+  const sd = swDay();
   Object.entries(cells).forEach(([d, c]) => {
     const h = days[d];
-    c.classList.toggle('filled', !!h);
+    const dis = Number(d) <= sd;
+    c.classList.toggle('dis', dis);
+    if (dis) selDays.delete(Number(d));
+    c.classList.toggle('filled', !!h && !dis);
     c.classList.toggle('sel', selDays.has(Number(d)));
-    c.querySelector('small').textContent = h ? h + 'h' : '';
+    c.querySelector('small').textContent = (h && !dis) ? h + 'h' : '';
   });
   $('btn-apply').textContent = selDays.size ? `선택한 ${selDays.size}일에 적용` : '선택한 날짜에 적용';
   renderInputSummary();
@@ -725,48 +761,65 @@ function renderAllow() {
 }
 function workSummary() {
   if (inputMode === 'calendar') {
-    const total = Object.values(days).reduce((a, b) => a + b, 0);
-    return { hours: total, workDays: Object.keys(days).length };
+    const sd = swDay();
+    let hours = 0, workDays = 0;
+    Object.entries(days).forEach(([d, h]) => {
+      if (Number(d) > sd) { hours += h; workDays += 1; }
+    });
+    return { hours, workDays };
   }
   return { hours: Number($('tot-hrs').value) || 0, workDays: Number($('tot-days').value) || 0 };
 }
-// 역일 기준 일할계산: 선택한 달 중 재직 일수 (입사일~퇴사일과 달의 교집합)
-function prorationFor() {
+// 역일 기준 일할계산: 선택한 달 중 재직 일수 (입사~퇴사, 월중 전환 시 전환일까지)
+function prorationFor(endCap) {
   const monthDays = new Date(selYear, selMonth, 0).getDate();
   let start = 1, end = monthDays;
   const h = getDate('in-hire'), l = getDate('in-leave');
   const mStart = ymd(1), mEnd = ymd(monthDays);
   if (h) { if (h > mEnd) return { days: 0, monthDays }; if (h >= mStart) start = Number(h.slice(8, 10)); }
   if (l) { if (l < mStart) return { days: 0, monthDays }; if (l <= mEnd) end = Number(l.slice(8, 10)); }
+  if (endCap) end = Math.min(end, endCap);
   return { days: Math.max(0, end - start + 1), monthDays };
 }
 function renderInputSummary() {
   if (!currentEmp) return;
+  const t = payMode;
   const aSum = allowances.reduce((s, a) => s + a.amount, 0);
-  let work = 0;
-  if (currentEmp.payType === 'monthly') {
+  let mPart = 0, hPart = 0;
+  if (t !== 'hourly') {
     const base = numOf($('mpay'));
-    const p = prorationFor();
+    const cap = t === 'mixed' ? swDay() : 0;
+    const p = prorationFor(cap);
     const full = p.days >= p.monthDays;
-    work = full ? base : Math.round(base * p.days / p.monthDays);
+    mPart = full ? base : Math.round(base * p.days / p.monthDays);
+    $('row-mpay').classList.remove('hidden');
+    $('l-mpay').textContent = t === 'mixed' ? (cap ? `월급 (${cap}일까지)` : '월급 (전환일 미입력)') : '월급';
+    $('s-mpay').textContent = won(mPart);
     $('row-prorate').classList.toggle('hidden', full);
     $('s-prorate').textContent = `${p.days}일 / ${p.monthDays}일`;
-    $('l-work').textContent = full ? '월급' : '월급 (일할계산)';
   } else {
+    $('row-mpay').classList.add('hidden');
     $('row-prorate').classList.add('hidden');
-    const w = workSummary();
-    work = Math.round(w.hours * numOf($('wage')));
-    $('s-days').textContent = `${w.workDays || '—'}일 · ${Math.round(w.hours * 10) / 10}시간`;
   }
-  $('s-work').textContent = won(work);
+  if (t !== 'monthly') {
+    const w = workSummary();
+    hPart = Math.round(w.hours * numOf($('wage')));
+    $('row-days').classList.remove('hidden');
+    $('row-work').classList.remove('hidden');
+    $('s-days').textContent = `${w.workDays || '—'}일 · ${Math.round(w.hours * 10) / 10}시간`;
+    $('s-work').textContent = won(hPart);
+  } else {
+    $('row-days').classList.add('hidden');
+    $('row-work').classList.add('hidden');
+  }
   $('s-allow').textContent = aSum ? '+' + won(aSum) : '0원';
-  $('s-total').textContent = won(work + aSum);
+  $('s-total').textContent = won(mPart + hPart + aSum);
 }
 function showMsg(kind, text) { const m = $('in-msg'); m.className = 'msg ' + kind; m.textContent = text; }
 
 async function submit() {
   const memo = $('memo').value.trim();
-  const t = currentEmp.payType;
+  const t = payMode;
   if (/\d{6,}/.test(memo)) return showMsg('err', '메모에 주민번호로 보이는 숫자는 저장할 수 없습니다. 담당자에게 직접 전달해 주세요.');
   const rh = readDate('in-hire'), rl = readDate('in-leave');
   if (!rh.ok || !rl.ok) return showMsg('err', '입사일·퇴사일 날짜를 확인해 주세요. 연도 4자리, 월, 일 순서입니다.');
@@ -775,21 +828,30 @@ async function submit() {
   const payload = { token, pin, targetMonth: curMonth(), employeeName: currentEmp.name,
     payType: t, newEmployee: !!currentEmp.pending, allowances, memo,
     hireDate: hire || null, leaveDate: leave || null };
-  if (t === 'monthly') {
+  if (t === 'mixed') {
+    const sd = swDay();
+    const md = new Date(selYear, selMonth, 0).getDate();
+    if (sd < 1 || sd >= md) return showMsg('err', '전환일을 입력해 주세요. 1일부터 말일 전날까지 가능합니다.');
+    payload.switchDay = sd;
+  }
+  if (t !== 'hourly') {
     if (numOf($('mpay')) <= 0) return showMsg('err', '월급액을 입력해 주세요.');
     payload.monthlyPay = numOf($('mpay'));
-    const p = prorationFor();
+    const p = prorationFor(t === 'mixed' ? swDay() : 0);
     if (p.days < p.monthDays) payload.proration = p;
-  } else {
+  }
+  if (t !== 'monthly') {
     if (numOf($('wage')) <= 0) return showMsg('err', '시급을 입력해 주세요.');
     payload.hourlyWage = numOf($('wage'));
     payload.inputMode = inputMode;
     if (inputMode === 'calendar') {
-      if (Object.keys(days).length === 0) return showMsg('err', '달력에서 근무한 날짜를 선택해 주세요.');
-      payload.days = Object.fromEntries(Object.entries(days).map(([d, h]) => [ymd(d), h]));
+      const sd = swDay();
+      const entries = Object.entries(days).filter(([d]) => Number(d) > sd);
+      if (t === 'hourly' && entries.length === 0) return showMsg('err', '달력에서 근무한 날짜를 선택해 주세요.');
+      payload.days = Object.fromEntries(entries.map(([d, h]) => [ymd(d), h]));
     } else {
       const w = workSummary();
-      if (w.hours <= 0) return showMsg('err', '총 근무시간을 입력해 주세요.');
+      if (t === 'hourly' && w.hours <= 0) return showMsg('err', '총 근무시간을 입력해 주세요.');
       payload.hours = w.hours; payload.workDays = w.workDays;
     }
   }
