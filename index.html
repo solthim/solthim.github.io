@@ -142,14 +142,22 @@
           border-radius: 12px; padding: 11px 13px; margin-top: 6px; font-size: 14px; }
   .arow b { color: var(--ink); font-variant-numeric: tabular-nums; }
   .arow .del { color: var(--red); font-size: 13px; cursor: pointer; padding: 2px 6px; font-weight: 600; }
-  /* 홈 3단 섹션 카드 */
-  .sect { display: flex; align-items: center; gap: 13px; cursor: pointer; }
-  .sect:active { transform: scale(.99); }
-  .sect .ic { width: 46px; height: 46px; border-radius: 14px; flex: none; display: flex;
-              align-items: center; justify-content: center; font-size: 18px; font-weight: 800; }
-  .sect .t1 { font-size: 13px; color: var(--mute); font-weight: 600; }
-  .sect .t2 { font-size: 20px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
-  .sect .t3 { font-size: 12.5px; color: #79827b; margin-top: 2px; }
+  /* 홈 3단 섹션 카드 — 그라데이션 히어로 스타일 */
+  .hcard { border-radius: 24px; padding: 20px; color: #fff; margin-bottom: 12px;
+           cursor: pointer; position: relative; transition: transform .1s; }
+  .hcard:active { transform: scale(.985); }
+  .hcard .harrow { position: absolute; top: 18px; right: 18px; font-size: 20px; opacity: .75; }
+  .hcard .hl { font-size: 13px; font-weight: 700; opacity: .92; }
+  .hcard .hl small { font-weight: 500; opacity: .8; font-size: 11.5px; margin-left: 5px; }
+  .hcard .hn2 { font-size: 29px; font-weight: 800; letter-spacing: -.02em; margin-top: 3px;
+                font-variant-numeric: tabular-nums; }
+  .hcard .hs2 { font-size: 12.5px; opacity: .85; margin-top: 7px; font-variant-numeric: tabular-nums; }
+  .hc-green  { background: linear-gradient(140deg, var(--green-2), var(--green-deep));
+               box-shadow: 0 10px 24px rgba(30, 158, 80, .3); }
+  .hc-orange { background: linear-gradient(140deg, var(--orange-2), var(--orange));
+               box-shadow: 0 10px 24px rgba(242, 112, 61, .28); }
+  .hc-blue   { background: linear-gradient(140deg, #5a9cf8, #2457c5);
+               box-shadow: 0 10px 24px rgba(59, 130, 246, .3); }
   .grow { flex: 1; min-width: 0; }
   .backrow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .backrow .bk { width: 46px; padding: 0; border-radius: 50%; font-size: 18px; flex: none; }
@@ -213,32 +221,32 @@
         <h1 id="wp-name-h"></h1>
         <p class="muted num" id="pub-info-h" style="margin-top:4px;"></p>
       </div>
-      <div class="card sect" id="go-sales">
-        <div class="ic" style="background:#e7effe; color:#2457c5;">₩</div>
-        <div class="grow">
-          <p class="t1">매출 · 매입 거래</p>
-          <p class="t2 num" id="hs-sales"></p>
-          <p class="t3 num" id="hs-sales-sub"></p>
+      <div class="hcard hc-blue" id="go-sales">
+        <span class="harrow">›</span>
+        <p class="hl">매출 · 매입 거래 <small>올해 누계 · 만원</small></p>
+        <div style="display:flex; gap:14px; margin-top:8px;">
+          <div style="flex:1;">
+            <p class="hl" style="opacity:.8;">매출</p>
+            <p class="hn2" id="hs-sales"></p>
+          </div>
+          <div style="flex:1;">
+            <p class="hl" style="opacity:.8;">매입</p>
+            <p class="hn2" id="hs-pur"></p>
+          </div>
         </div>
-        <span style="color:#c3cac4;">›</span>
+        <p class="hs2" id="hs-sales-sub"></p>
       </div>
-      <div class="card sect" id="go-labor">
-        <div class="ic" style="background:#ffeee2; color:#c05314;">급</div>
-        <div class="grow">
-          <p class="t1">인건비</p>
-          <p class="t2 num" id="hs-labor"></p>
-          <p class="t3 num" id="hs-labor-sub"></p>
-        </div>
-        <span style="color:#c3cac4;">›</span>
+      <div class="hcard hc-orange" id="go-labor">
+        <span class="harrow">›</span>
+        <p class="hl">인건비</p>
+        <p class="hn2" id="hs-labor"></p>
+        <p class="hs2" id="hs-labor-sub"></p>
       </div>
-      <div class="card sect" id="go-pnl">
-        <div class="ic" style="background:#e2f5e9; color:#157a3d;">분</div>
-        <div class="grow">
-          <p class="t1">홈택스 자료분석</p>
-          <p class="t2 num" id="hs-pnl"></p>
-          <p class="t3 num" id="hs-pnl-sub"></p>
-        </div>
-        <span style="color:#c3cac4;">›</span>
+      <div class="hcard hc-green" id="go-pnl">
+        <span class="harrow">›</span>
+        <p class="hl">홈택스 자료분석 <small>매출 − 매입 − 인건비</small></p>
+        <p class="hn2" id="hs-pnl"></p>
+        <p class="hs2" id="hs-pnl-sub"></p>
       </div>
     </div>
 
@@ -807,6 +815,7 @@ $('go-sales').onclick = () => { if (!snap.sales) return; renderSales(); navTo('v
 $('go-pnl').onclick = () => { if (!snap.pnl) return; renderPnl(); navTo('v-pnl'); };
 
 // ---- 홈 3단 요약 ----
+const manwon = n => Math.round(n / 10000).toLocaleString('ko-KR') + '만원';
 function renderHome() {
   $('wp-name-h').textContent = snap.workplace.name;
   $('pub-info-h').textContent = `${snap.publishedAt.slice(0, 10)} 발행`;
@@ -818,12 +827,14 @@ function renderHome() {
     const tS = ms.reduce((s, k) => s + snap.pnl.byMonth[k].sales, 0);
     const tP = ms.reduce((s, k) => s + snap.pnl.byMonth[k].purchases, 0);
     const tPr = ms.reduce((s, k) => s + snap.pnl.byMonth[k].profit, 0);
-    $('hs-sales').textContent = won(tS);
-    $('hs-sales-sub').textContent = `올해 매출 누계 · 매입 ${won(tP)} · 기준일 ${snap.sales.asOf}`;
-    $('hs-pnl').textContent = (tPr >= 0 ? '+' : '') + won(tPr);
-    $('hs-pnl-sub').textContent = '올해 누계 (매출 − 매입 − 인건비)';
+    $('hs-sales').textContent = manwon(tS);
+    $('hs-pur').textContent = manwon(tP);
+    $('hs-sales-sub').textContent = `자료 기준일 ${snap.sales.asOf} · 부가세 포함`;
+    $('hs-pnl').textContent = (tPr >= 0 ? '+' : '−') + manwon(Math.abs(tPr));
+    $('hs-pnl-sub').textContent = '올해 누계 · 부가세 포함';
   } else {
     $('hs-sales').textContent = '집계 전';
+    $('hs-pur').textContent = '집계 전';
     $('hs-sales-sub').textContent = '담당자가 발행하면 표시됩니다.';
     $('hs-pnl').textContent = '집계 전';
     $('hs-pnl-sub').textContent = '담당자가 발행하면 표시됩니다.';
