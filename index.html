@@ -141,7 +141,11 @@
                    z-index: 2; pointer-events: none;
                    background: linear-gradient(to right, rgba(58, 88, 160, .22), rgba(58, 88, 160, 0)); }
   .mscroll { overflow-x: auto; }
-  .mtab .ghead td { font-weight: 800; color: var(--ink); text-align: left; padding-top: 12px; }
+  .mtab .ghead td { font-weight: 800; color: var(--ink); padding-top: 12px; }
+  .mtab .ghead td.cn { text-align: left; }
+  .mtab .ghead.exp { cursor: pointer; }
+  .mtab .tri { color: var(--mute); font-size: 10px; }
+  .mtab .child .cn { color: #7d8aa6; font-weight: 400; }
   .mtab .tot-row td { font-weight: 800; border-bottom: 0; }
   .grow { flex: 1; min-width: 0; }
   .backrow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
@@ -308,7 +312,7 @@
           <p class="muted num" id="pub-info" style="margin-top:4px;"></p>
         </div>
       </div>
-      <div id="msel-sum" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"></div>
+      <div id="msel-sum" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-bottom:12px;"></div>
 
       <div class="hero">
         <p class="hl">이번 달 인건비 합계</p>
@@ -353,13 +357,6 @@
           </div>
           <div class="msg" id="add-msg"></div>
         </div>
-      </div>
-      <div class="card hidden" id="labor-card">
-        <p class="grp" style="margin-top:0;">월별 인건비</p>
-        <div class="lgd">
-          <span><i style="background:#f2703d;"></i>인건비</span>
-        </div>
-        <div id="labor-chart" class="chart"></div>
       </div>
     </div>
 
@@ -434,6 +431,25 @@
           <span id="msel-year"></span> 몇 월 급여를 입력하나요?</p>
         <div id="msel"></div>
       </div>
+      <div class="card" style="padding:14px 16px;">
+        <button id="btn-info" class="plain" style="width:100%; font-size:14.5px;">✎ 퇴사일 입력 (퇴사한 경우)</button>
+        <div id="sec-info" class="hidden">
+          <div class="hidden">
+            <div class="dgroup">
+              <input id="in-hire-y" inputmode="numeric" maxlength="4">
+              <input id="in-hire-m" inputmode="numeric" maxlength="2">
+              <input id="in-hire-d" inputmode="numeric" maxlength="2">
+            </div>
+          </div>
+          <label style="font-weight:400;">퇴사일 — 숫자만 쭉 입력하세요 (예: 2026 07 15)</label>
+          <div class="dgroup">
+            <input id="in-leave-y" inputmode="numeric" maxlength="4" placeholder="연도">
+            <input id="in-leave-m" inputmode="numeric" maxlength="2" placeholder="월">
+            <input id="in-leave-d" inputmode="numeric" maxlength="2" placeholder="일">
+          </div>
+          <p class="muted" style="margin-top:7px;">퇴사일을 넣으면 월급제는 자동 일할계산되고, 그 다음 날부터의 시급 근무 입력이 열립니다.</p>
+        </div>
+      </div>
       <div class="card">
 
         <!-- 급여 방식: 달마다 선택 가능 -->
@@ -455,24 +471,6 @@
           <input id="mpay" inputmode="numeric" placeholder="2,800,000">
           <p class="muted" style="margin-top:6px;">월급이 바뀌거나 수당이 있는 달에만 제출하면 됩니다.
              제출하지 않으면 기존 금액이 유지됩니다. 퇴사하는 달은 사원정보에 퇴사일을 넣으면 자동으로 일할계산됩니다.</p>
-        </div>
-
-        <button id="btn-info" class="plain" style="width:100%; margin-top:16px; font-size:14.5px; color:#3c463f;">
-          ✎ 사원정보 수정 (입사일 · 퇴사일)</button>
-        <div id="sec-info" class="hidden">
-          <label style="font-weight:400;">입사일 — 숫자만 쭉 입력하세요 (예: 2026 07 15)</label>
-          <div class="dgroup">
-            <input id="in-hire-y" inputmode="numeric" maxlength="4" placeholder="연도">
-            <input id="in-hire-m" inputmode="numeric" maxlength="2" placeholder="월">
-            <input id="in-hire-d" inputmode="numeric" maxlength="2" placeholder="일">
-          </div>
-          <label style="font-weight:400;">퇴사일 (해당 시)</label>
-          <div class="dgroup">
-            <input id="in-leave-y" inputmode="numeric" maxlength="4" placeholder="연도">
-            <input id="in-leave-m" inputmode="numeric" maxlength="2" placeholder="월">
-            <input id="in-leave-d" inputmode="numeric" maxlength="2" placeholder="일">
-          </div>
-          <p class="muted" style="margin-top:7px;">퇴사일을 넣으면 월급제 급여가 자동으로 일할계산됩니다.</p>
         </div>
 
         <!-- 시급 근무 입력 (시급제 / 월급제 퇴사 후 시급 근무) -->
@@ -578,7 +576,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v15 (2026-07-12)';
+const APP_VER = 'v16 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
@@ -707,16 +705,23 @@ function renderSummary() {
   $('wp-name').textContent = snap.workplace.name;
   const [y, m] = snap.targetMonth.split('-');
   $('pub-info').textContent = `${y}년 ${Number(m)}월 인건비 · ${snap.publishedAt.slice(0, 10)} 발행`;
+  // 12개월 그리드 — 각 달 아래 해당월 인건비 표시, 발행된 달만 선택 가능
   const box = $('msel-sum');
   box.innerHTML = '';
-  months.forEach(mm => {
+  const yr = snap.targetMonth.slice(0, 4);
+  for (let mi = 1; mi <= 12; mi++) {
+    const mm = `${yr}-${String(mi).padStart(2, '0')}`;
+    const published = months.includes(mm);
+    const labor = (snap.pnl && snap.pnl.byMonth[mm]) ? snap.pnl.byMonth[mm].labor : null;
     const b = document.createElement('button');
     b.className = 'mbtn' + (mm === snap.targetMonth ? ' on' : '');
-    b.style.padding = '9px 16px';
-    b.textContent = `${Number(mm.slice(5))}월`;
-    b.onclick = () => api({ month: mm });
+    b.style.cssText = 'display:flex; flex-direction:column; align-items:center; gap:2px; min-height:54px; padding:8px 0;';
+    b.innerHTML = `<span style="font-weight:700;">${mi}월</span>`
+      + `<span style="font-size:11px; opacity:.85;">${labor != null ? Math.round(labor / 10000).toLocaleString('ko-KR') + '만' : '—'}</span>`;
+    if (published) b.onclick = () => api({ month: mm });
+    else { b.disabled = true; b.style.opacity = '.45'; }
     box.appendChild(b);
-  });
+  }
   $('t-month').textContent = won(snap.totals.monthPay);
   $('t-sub').textContent = `올해 누계 ${won(snap.totals.yearPay)}`;
   const fmtMD = iso => `${Number(iso.slice(5, 7))}.${Number(iso.slice(8, 10))}`;
@@ -736,14 +741,6 @@ function renderSummary() {
   }).join('');
   $('emp-list').querySelectorAll('.emp').forEach(el =>
     el.onclick = () => enterInput(emps[Number(el.dataset.i)]));
-  // 월별 인건비 막대그래프
-  if (snap.pnl) {
-    $('labor-card').classList.remove('hidden');
-    const ms = Object.keys(snap.pnl.byMonth).sort();
-    drawChart($('labor-chart'), ms, [{ color: C_LABOR, get: mm => snap.pnl.byMonth[mm].labor }]);
-  } else {
-    $('labor-card').classList.add('hidden');
-  }
   renderHome();
 }
 
@@ -830,9 +827,9 @@ function loadDraftIntoUI() {
   $('mpay').value = d.mpay ? d.mpay.toLocaleString('ko-KR') : '';
   $('memo').value = d.memo;
   setDate('in-hire', d.hire); setDate('in-leave', d.leave);
-  const infoOpen = !!emp.pending || (d.hire && d.hire.startsWith(curMonth())) || (d.leave && d.leave.startsWith(curMonth()));
+  const infoOpen = (d.leave && d.leave.startsWith(curMonth()));
   $('sec-info').classList.toggle('hidden', !infoOpen);
-  $('btn-info').textContent = infoOpen ? '사원정보 접기' : '✎ 사원정보 수정 (입사일 · 퇴사일)';
+  $('btn-info').textContent = infoOpen ? '퇴사일 접기' : '✎ 퇴사일 입력 (퇴사한 경우)';
   $('in-emp').textContent = emp.name;
   $('in-title').textContent = `${selYear}년 ${selMonth}월 근무 입력${emp.pending ? ' · 등록 대기' : ''}`;
   mbtns.forEach((b, i) => b.classList.toggle('on', i + 1 === selMonth));
@@ -941,46 +938,58 @@ function fmtMan(n) {
 }
 function collectMatrix(byMonth, groups) {
   const months = Object.keys(byMonth).sort();
-  const items = [];   // {type:'head', label} 또는 {type:'row', name, vals}
-  const dataRows = [];
+  const gs = [];   // {label, rows:[{name,vals}], gTot, expandable}
   groups.forEach(([label, key, isList]) => {
-    const rows = [];
     if (isList) {
       const names = [];
       months.forEach(mm => (byMonth[mm][key] || []).forEach(it => {
         if (!names.includes(it.name)) names.push(it.name);
       }));
-      names.forEach(name => rows.push({ name,
+      if (!names.length) return;
+      const rows = names.map(name => ({ name,
         vals: months.map(mm => ((byMonth[mm][key] || []).find(x => x.name === name) || {}).total || 0) }));
+      const gTot = months.map((_, i) => rows.reduce((s, r) => s + r.vals[i], 0));
+      gs.push({ label, rows, gTot, expandable: true });
     } else {
       const vals = months.map(mm => byMonth[mm][key] || 0);
-      if (vals.some(v => v > 0)) rows.push({ name: '합계', vals });
+      if (vals.some(v => v > 0)) gs.push({ label, rows: [], gTot: vals, expandable: false });
     }
-    if (!rows.length) return;
-    items.push({ type: 'head', label });
-    rows.forEach(r => { dataRows.push(r); items.push({ type: 'row', name: r.name, vals: r.vals }); });
   });
-  const monthTot = months.map((_, i) => dataRows.reduce((s, r) => s + r.vals[i], 0));
+  const monthTot = months.map((_, i) => gs.reduce((s, g) => s + g.gTot[i], 0));
   const grand = monthTot.reduce((a, b) => a + b, 0);
-  return { months, items, monthTot, grand };
+  return { months, gs, monthTot, grand };
 }
-// 왼쪽 고정 표(상호·합계)와 오른쪽 스크롤 표(월별)를 같은 행 순서로 렌더링
+// 왼쪽 고정 표(상호·합계)와 오른쪽 스크롤 표(월별)를 같은 행 순서로 렌더링.
+// 유형 행을 터치하면 상세(거래처별)가 열리고 닫힘 — 닫힌 상태에서는 유형별 월 합계만 표시.
 function renderMatrix(leftEl, rightEl, m, totalLabel, totalClass) {
+  const gsum = g => g.gTot.reduce((a, b) => a + b, 0);
   leftEl.innerHTML =
     '<colgroup><col style="width:82px"><col style="width:72px"></colgroup>'
     + '<thead><tr><th class="cn">상호</th><th class="cs">합계</th></tr></thead><tbody>'
-    + m.items.map(it => it.type === 'head'
-        ? `<tr class="ghead"><td colspan="2">${it.label}</td></tr>`
-        : `<tr><td class="cn">${it.name}</td><td class="cs">${fmtMan(it.vals.reduce((a, b) => a + b, 0))}</td></tr>`).join('')
+    + m.gs.map((g, i) =>
+        `<tr class="ghead${g.expandable ? ' exp' : ''}" data-g="${i}"><td class="cn">${g.expandable ? '<span class="tri">▸</span> ' : ''}${g.label}</td><td class="cs">${fmtMan(gsum(g))}</td></tr>`
+        + g.rows.map(r => `<tr class="child g${i} hidden"><td class="cn" style="padding-left:16px;">${r.name}</td><td class="cs">${fmtMan(r.vals.reduce((a, b) => a + b, 0))}</td></tr>`).join('')
+      ).join('')
     + `<tr class="tot-row"><td class="cn">${totalLabel}</td><td class="cs ${totalClass}">${fmtMan(m.grand)}</td></tr></tbody>`;
   rightEl.style.width = (m.months.length * 54) + 'px';
   rightEl.innerHTML =
     '<colgroup>' + m.months.map(() => '<col style="width:54px">').join('') + '</colgroup>'
     + '<thead><tr>' + m.months.map(mm => `<th>${Number(mm.slice(5))}월</th>`).join('') + '</tr></thead><tbody>'
-    + m.items.map(it => it.type === 'head'
-        ? `<tr class="ghead"><td colspan="${m.months.length}" style="text-align:right;">&nbsp;</td></tr>`
-        : '<tr>' + it.vals.map(v => `<td>${fmtMan(v)}</td>`).join('') + '</tr>').join('')
+    + m.gs.map((g, i) =>
+        `<tr class="ghead${g.expandable ? ' exp' : ''}" data-g="${i}">` + g.gTot.map(v => `<td>${fmtMan(v)}</td>`).join('') + '</tr>'
+        + g.rows.map(r => `<tr class="child g${i} hidden">` + r.vals.map(v => `<td>${fmtMan(v)}</td>`).join('') + '</tr>').join('')
+      ).join('')
     + '<tr class="tot-row">' + m.monthTot.map(v => `<td class="${totalClass}">${fmtMan(v)}</td>`).join('') + '</tr></tbody>';
+  const toggle = i => {
+    const head = leftEl.querySelector(`.ghead[data-g="${i}"]`);
+    const open = head.classList.toggle('open');
+    [leftEl, rightEl].forEach(t =>
+      t.querySelectorAll(`.child.g${i}`).forEach(tr => tr.classList.toggle('hidden', !open)));
+    const tri = head.querySelector('.tri');
+    if (tri) tri.textContent = open ? '▾' : '▸';
+  };
+  [leftEl, rightEl].forEach(t =>
+    t.querySelectorAll('.ghead.exp').forEach(tr => { tr.onclick = () => toggle(tr.dataset.g); }));
 }
 // 매출·매입 표 가로 스크롤 동기화
 (() => {
@@ -1110,7 +1119,7 @@ function buildCal() {
   $('it-biz').onclick = () => { incomeType = '사업'; updateForm(); };
   $('btn-info').onclick = () => {
     const nowHidden = $('sec-info').classList.toggle('hidden');
-    $('btn-info').textContent = nowHidden ? '✎ 사원정보 수정 (입사일 · 퇴사일)' : '사원정보 접기';
+    $('btn-info').textContent = nowHidden ? '✎ 퇴사일 입력 (퇴사한 경우)' : '퇴사일 접기';
   };
   ['tot-hrs', 'tot-days'].forEach(id => $(id).addEventListener('input', renderInputSummary));
   bindDateGroup('in-hire'); bindDateGroup('in-leave');
@@ -1184,16 +1193,29 @@ function renderAllow() {
     el.onclick = () => { allowances.splice(Number(el.dataset.i), 1); renderAllow(); });
   renderInputSummary();
 }
+// 근무 집계 + 주휴수당 자동계산 (달력 입력 시): 일~토 주 단위로 15시간 이상이면
+// 주휴시간 = min(주 근무시간, 40) ÷ 40 × 8 (0.5시간 단위 반올림). 참고용 — 확정은 담당자.
 function workSummary() {
   if (inputMode === 'calendar') {
     const sd = swDay();
+    const first = new Date(selYear, selMonth - 1, 1).getDay();
     let hours = 0, workDays = 0;
+    const weeks = {};
     Object.entries(days).forEach(([d, h]) => {
-      if (Number(d) > sd) { hours += h; workDays += 1; }
+      if (Number(d) > sd) {
+        hours += h; workDays += 1;
+        const w = Math.floor((first + Number(d) - 1) / 7);
+        weeks[w] = (weeks[w] || 0) + h;
+      }
     });
-    return { hours, workDays };
+    let rest = 0;
+    Object.values(weeks).forEach(wh => {
+      if (wh >= 15) rest += Math.round(Math.min(wh, 40) / 40 * 8 * 2) / 2;
+    });
+    return { hours, rest, total: hours + rest, workDays };
   }
-  return { hours: Number($('tot-hrs').value) || 0, workDays: Number($('tot-days').value) || 0 };
+  const hours = Number($('tot-hrs').value) || 0;
+  return { hours, rest: 0, total: hours, workDays: Number($('tot-days').value) || 0 };
 }
 // 역일 기준 일할계산: 선택한 달 중 재직 일수 (입사~퇴사, 월중 전환 시 전환일까지)
 function prorationFor(endCap) {
@@ -1229,10 +1251,10 @@ function renderInputSummary() {
   const showHourly = t === 'hourly' || sd > 0;
   if (showHourly) {
     const w = workSummary();
-    hPart = Math.round(w.hours * numOf($('wage')));
+    hPart = Math.round(w.total * numOf($('wage')));
     $('row-days').classList.remove('hidden');
     $('row-work').classList.remove('hidden');
-    $('s-days').textContent = `${w.workDays || '—'}일 · ${Math.round(w.hours * 10) / 10}시간`;
+    $('s-days').textContent = `${w.workDays || '—'}일 · 총 ${Math.round(w.total * 10) / 10}시간${w.rest ? ` (주휴 ${w.rest}시간 포함)` : ''}`;
     $('s-work').textContent = won(hPart);
   } else {
     $('row-days').classList.add('hidden');
@@ -1268,13 +1290,16 @@ async function submit() {
     if (numOf($('wage')) <= 0) return showMsg('err', '시급을 입력해 주세요.');
     payload.hourlyWage = numOf($('wage'));
     payload.inputMode = inputMode;
+    payload.hours = w.hours;
+    payload.restHours = w.rest;        // 주휴시간 자동계산 (참고용 — 서버·담당자 재검증)
+    payload.totalHours = w.total;
+    payload.workDays = w.workDays;
     if (inputMode === 'calendar') {
       const entries = Object.entries(days).filter(([d]) => Number(d) > sd);
       if (t === 'hourly' && entries.length === 0) return showMsg('err', '달력에서 근무한 날짜를 선택해 주세요.');
       payload.days = Object.fromEntries(entries.map(([d, h]) => [ymd(d), h]));
     } else {
       if (t === 'hourly' && w.hours <= 0) return showMsg('err', '총 근무시간을 입력해 주세요.');
-      payload.hours = w.hours; payload.workDays = w.workDays;
     }
   }
   if (DEMO) return showMsg('info', '데모 모드입니다 — 실제로 저장되지 않습니다. 실제 앱에서는 담당 회계사에게 전달됩니다.');
