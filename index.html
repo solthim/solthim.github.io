@@ -387,9 +387,8 @@
       <div class="card">
         <p class="grp" style="margin-top:0;">월별 추이</p>
         <div class="lgd">
-          <span><i style="background:#d43a35;"></i>매출</span>
-          <span><i style="background:#2f6fd8;"></i>매입</span>
-          <span><i style="background:#f2703d;"></i>인건비</span>
+          <span><i style="background:#d43a35;"></i>수익 (매출)</span>
+          <span><i style="background:#2f6fd8;"></i>비용 (매입+인건비)</span>
         </div>
         <div id="pnl-chart" class="chart"></div>
       </div>
@@ -582,7 +581,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v23 (2026-07-12)';
+const APP_VER = 'v24 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
@@ -1085,11 +1084,10 @@ function renderPnl() {
   $('pnl-asof').textContent = `자료 기준일 ${snap.sales ? snap.sales.asOf : '-'}`;
   const months = Object.keys(snap.pnl.byMonth).sort();
   const manw = n => Math.round(n / 10000).toLocaleString('ko-KR');
-  // 월별 매출·매입·인건비 막대그래프 (매출=빨강, 매입=파랑)
+  // 월별 수익(매출) vs 비용(매입+인건비) 막대그래프
   drawChart($('pnl-chart'), months, [
     { color: C_SALE, get: mm => snap.pnl.byMonth[mm].sales },
-    { color: C_PUR, get: mm => snap.pnl.byMonth[mm].purchases },
-    { color: C_LABOR, get: mm => snap.pnl.byMonth[mm].labor }
+    { color: C_PUR, get: mm => snap.pnl.byMonth[mm].purchases + snap.pnl.byMonth[mm].labor }
   ]);
   let tS = 0, tP = 0, tL = 0, tPr = 0;
   $('pnl-rows').innerHTML = months.map(mm => {
