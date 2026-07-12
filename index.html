@@ -387,8 +387,9 @@
       <div class="card">
         <p class="grp" style="margin-top:0;">월별 추이</p>
         <div class="lgd">
-          <span><i style="background:#d43a35;"></i>수익 (매출)</span>
-          <span><i style="background:#2f6fd8;"></i>비용 (매입+인건비)</span>
+          <span><i style="background:#d43a35;"></i>매출 (수익)</span>
+          <span><i style="background:#2f6fd8;"></i>매입</span>
+          <span><i style="background:#f2703d;"></i>인건비</span>
         </div>
         <div id="pnl-chart" class="chart"></div>
       </div>
@@ -581,7 +582,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v24 (2026-07-12)';
+const APP_VER = 'v25 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
@@ -1084,11 +1085,27 @@ function renderPnl() {
   $('pnl-asof').textContent = `자료 기준일 ${snap.sales ? snap.sales.asOf : '-'}`;
   const months = Object.keys(snap.pnl.byMonth).sort();
   const manw = n => Math.round(n / 10000).toLocaleString('ko-KR');
-  // 월별 수익(매출) vs 비용(매입+인건비) 막대그래프
-  drawChart($('pnl-chart'), months, [
-    { color: C_SALE, get: mm => snap.pnl.byMonth[mm].sales },
-    { color: C_PUR, get: mm => snap.pnl.byMonth[mm].purchases + snap.pnl.byMonth[mm].labor }
-  ]);
+  // 월별 수익(빨강) vs 비용(쌓기: 인건비 위에 매입) 막대그래프
+  {
+    const maxV = Math.max(1, ...months.map(mm => {
+      const r = snap.pnl.byMonth[mm];
+      return Math.max(r.sales, r.purchases + r.labor);
+    }));
+    const H = v => Math.max(2, Math.round(v / maxV * 110));
+    $('pnl-chart').innerHTML = months.map(mm => {
+      const r = snap.pnl.byMonth[mm];
+      return `<div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px;">
+        <div style="display:flex; align-items:flex-end; gap:3px; height:112px;">
+          <div style="width:12px; height:${H(r.sales)}px; background:${C_SALE}; border-radius:4px 4px 0 0;"></div>
+          <div style="width:12px; display:flex; flex-direction:column; justify-content:flex-end;">
+            <div style="height:${H(r.purchases)}px; background:${C_PUR}; border-radius:4px 4px 0 0;"></div>
+            <div style="height:${H(r.labor)}px; background:${C_LABOR};"></div>
+          </div>
+        </div>
+        <span style="font-size:11px; color:var(--mute); font-weight:600;">${Number(mm.slice(5))}월</span>
+      </div>`;
+    }).join('');
+  }
   let tS = 0, tP = 0, tL = 0, tPr = 0;
   $('pnl-rows').innerHTML = months.map(mm => {
     const r = snap.pnl.byMonth[mm];
