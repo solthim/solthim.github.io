@@ -135,7 +135,7 @@
   .mtab th { color: var(--mute); font-weight: 600; }
   .mtab .cn { text-align: left; width: 82px; }
   .mtab .cs { width: 72px; font-weight: 700; color: var(--ink); }
-  .mleft { flex: none; width: 154px; }
+  .mleft { flex: none; width: 154px; background: rgba(91, 141, 239, .12); border-radius: 10px 0 0 10px; }
   .mclip { position: relative; flex: 1; min-width: 0; }
   .mclip::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 12px;
                    z-index: 2; pointer-events: none;
@@ -292,6 +292,7 @@
         <p class="hn2" id="hs-pnl"></p>
         <p class="hs2" id="hs-pnl-sub"></p>
       </div>
+      <p class="muted" id="app-ver" style="text-align:center; font-size:11px; margin-top:16px;"></p>
     </div>
 
     <!-- 인건비 (섹션) -->
@@ -313,12 +314,6 @@
         <p class="hl">이번 달 인건비 합계</p>
         <p class="hn" id="t-month"></p>
         <p class="hs" id="t-sub"></p>
-      </div>
-      <div class="stats">
-        <div><b id="st-all">0</b><span>직원</span></div>
-        <div><b id="st-month">0</b><span>월급제</span></div>
-        <div><b id="st-hour">0</b><span>시급제</span></div>
-        <div><b id="st-biz">0</b><span>사업소득</span></div>
       </div>
 
       <p class="muted" style="margin:0 6px 8px;">직원을 누르면 근무 입력으로 이동합니다.</p>
@@ -583,6 +578,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
+const APP_VER = 'v15 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
@@ -717,37 +713,29 @@ function renderSummary() {
     const b = document.createElement('button');
     b.className = 'mbtn' + (mm === snap.targetMonth ? ' on' : '');
     b.style.padding = '9px 16px';
-    b.textContent = `${Number(mm.slice(5))}월 발행분`;
+    b.textContent = `${Number(mm.slice(5))}월`;
     b.onclick = () => api({ month: mm });
     box.appendChild(b);
   });
   $('t-month').textContent = won(snap.totals.monthPay);
   $('t-sub').textContent = `올해 누계 ${won(snap.totals.yearPay)}`;
-  $('st-all').textContent = snap.totals.count;
-  $('st-month').textContent = snap.employees.filter(e => e.payType === 'monthly').length;
-  $('st-hour').textContent = snap.employees.filter(e => e.payType === 'hourly').length;
-  $('st-biz').textContent = snap.employees.filter(e => e.insurance === '사업소득').length;
   const fmtMD = iso => `${Number(iso.slice(5, 7))}.${Number(iso.slice(8, 10))}`;
-  $('emp-list').innerHTML = snap.employees.map((e, i) => {
+  const emps = [...snap.employees].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  $('emp-list').innerHTML = emps.map((e, i) => {
     let dateChips = '';
     if (e.hireDate && e.hireDate.startsWith(snap.targetMonth)) dateChips += `<span class="chip c-join">${fmtMD(e.hireDate)} 입사</span>`;
     if (e.leaveDate && e.leaveDate.startsWith(snap.targetMonth)) dateChips += `<span class="chip c-leave">${fmtMD(e.leaveDate)} 퇴사</span>`;
-    let detail = '';
-    if (e.hourly) detail += `<p class="sub num">근무 급여: ${e.hourly.hours}시간 × ${e.hourly.wage.toLocaleString('ko-KR')}원 = ${won(e.hourly.hours * e.hourly.wage)} (근무일 ${e.hourly.workDays}일)</p>`;
-    if (e.proration) detail += `<p class="sub num">월급 일할계산: 재직 ${e.proration.days}일 / ${e.proration.monthDays}일${e.baseMonthPay ? ` (기준 월급 ${won(e.baseMonthPay)})` : ''}</p>`;
-    (e.allowances || []).forEach(a => { detail += `<p class="sub num">+ ${a.name} ${won(a.amount)}</p>`; });
     return `<div class="emp" data-i="${i}">
       <div class="mid">
         <div><span class="namebox">${e.name}</span></div>
         <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}${dateChips}</div>
         <p class="ytd num">올해 총급여 ${won(e.yearPay)}</p>
-        ${detail}
       </div>
       <div class="right"><span class="pay">${won(e.monthPay)}</span><span class="arrow">›</span></div>
     </div>`;
   }).join('');
   $('emp-list').querySelectorAll('.emp').forEach(el =>
-    el.onclick = () => enterInput(snap.employees[Number(el.dataset.i)]));
+    el.onclick = () => enterInput(emps[Number(el.dataset.i)]));
   // 월별 인건비 막대그래프
   if (snap.pnl) {
     $('labor-card').classList.remove('hidden');
@@ -900,6 +888,7 @@ const manwon = n => {
   return `${man.toLocaleString('ko-KR')}만원`;
 };
 function renderHome() {
+  $('app-ver').textContent = '앱 버전 ' + APP_VER;
   $('wp-name-h').textContent = snap.workplace.name;
   $('pub-info-h').textContent = `${snap.publishedAt.slice(0, 10)} 발행`;
   const [, m] = snap.targetMonth.split('-');
