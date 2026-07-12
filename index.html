@@ -362,6 +362,7 @@
             <input id="add-leave-y" inputmode="numeric" maxlength="4" placeholder="연도">
             <input id="add-leave-m" inputmode="numeric" maxlength="2" placeholder="월">
             <input id="add-leave-d" inputmode="numeric" maxlength="2" placeholder="일">
+            <button id="add-leave-clear" class="plain" style="flex:none; padding:0 16px; color:var(--red); font-weight:700; white-space:nowrap;">삭제</button>
           </div>
           <div class="row" style="margin-top:14px;">
             <button id="btn-add-cancel" class="plain" style="flex:1;">취소</button>
@@ -498,6 +499,7 @@
             <input id="in-leave-y" inputmode="numeric" maxlength="4" placeholder="연도">
             <input id="in-leave-m" inputmode="numeric" maxlength="2" placeholder="월">
             <input id="in-leave-d" inputmode="numeric" maxlength="2" placeholder="일">
+            <button id="in-leave-clear" class="plain" style="flex:none; padding:0 16px; color:var(--red); font-weight:700; white-space:nowrap;">삭제</button>
           </div>
           <p class="muted" style="margin-top:7px;">퇴사일을 넣으면 월급제는 자동 일할계산되고, 그 다음 날부터의 시급 근무 입력이 열립니다.</p>
         </div>
@@ -634,7 +636,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v33 (2026-07-12)';
+const APP_VER = 'v34 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -708,6 +710,7 @@ function setDate(id, iso) {
   $(id + '-y').value = y || ''; $(id + '-m').value = m || ''; $(id + '-d').value = d || '';
 }
 ['add-hire', 'add-leave'].forEach(bindDateGroup);
+$('add-leave-clear').onclick = () => setDate('add-leave', '');
 
 // ---- 인증 ----
 const AUTH_KEY = 'solthim_auth_' + token;
@@ -1532,6 +1535,11 @@ function buildCal() {
   };
   ['tot-hrs', 'tot-days'].forEach(id => $(id).addEventListener('input', renderInputSummary));
   bindDateGroup('in-hire'); bindDateGroup('in-leave');
+  $('in-leave-clear').onclick = () => {
+    setDate('in-leave', '');
+    saveDraft(); updateForm();
+    showMsg('info', '퇴사일이 삭제되었습니다.');
+  };
   commaBind($('wage')); commaBind($('aamt')); commaBind($('mpay'));
 
   // 월 선택판 (1~12월)
