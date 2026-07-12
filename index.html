@@ -210,6 +210,8 @@
   .calgrid .d.filled { background: rgba(91, 141, 239, .22); border-color: rgba(91, 141, 239, .4); }
   .calgrid .d.sel { border-color: var(--blue); box-shadow: 0 0 0 1.5px var(--blue); }
   .calgrid .d.dis { opacity: .35; cursor: default; }
+  .calgrid .d.abs { background: rgba(212, 58, 53, .16); border-color: rgba(212, 58, 53, .45); }
+  .calgrid .d.abs small { color: var(--red); }
   .calgrid .d .num { display: block; font-weight: 600; color: var(--body-c); }
   .calgrid .d small { display: block; font-size: 11px; min-height: 13px; color: var(--blue-deep); font-weight: 700; }
 
@@ -251,7 +253,11 @@
       <label style="text-align:left;">사업자번호 뒤 5자리</label>
       <input id="pin" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off"
              style="text-align:center; font-size:24px; letter-spacing:10px; font-weight:800;">
+      <label style="text-align:left;">대표자 생년월일 6자리 (주민등록번호 앞자리)</label>
+      <input id="bday" inputmode="numeric" maxlength="6" placeholder="800101" autocomplete="off"
+             style="text-align:center; font-size:24px; letter-spacing:8px; font-weight:800;">
       <button class="primary" id="btn-auth" style="width:100%; margin-top:14px;">열람하기</button>
+      <p class="muted" style="margin-top:12px; font-size:12.5px;">처음 한 번만 입력하면 다음부터는 자동으로 열립니다.</p>
       <div class="msg" id="pin-msg"></div>
     </div>
   </div>
@@ -503,6 +509,12 @@
           <input id="mpay" inputmode="numeric" placeholder="2,800,000">
           <p class="muted" style="margin-top:6px;">월급이 바뀌거나 수당이 있는 달에만 제출하면 됩니다.
              제출하지 않으면 기존 금액이 유지됩니다. 퇴사하는 달은 사원정보에 퇴사일을 넣으면 자동으로 일할계산됩니다.</p>
+          <label>결근한 날 (무급인 경우만)</label>
+          <button id="btn-abs" class="plain" style="width:100%;">결근일 선택</button>
+          <div id="sec-abs" class="hidden">
+            <label>결근한 날짜를 누르세요. 그 날만큼 월급에서 빠집니다.</label>
+            <div id="cal-abs" class="calgrid"></div>
+          </div>
         </div>
 
         <!-- 시급 근무 입력 (시급제 / 월급제 퇴사 후 시급 근무) -->
@@ -614,13 +626,13 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v30 (2026-07-12)';
+const APP_VER = 'v31 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
 const DEMO = window.SOLTHIM_DEMO || null;
-let pin = '', months = [], snap = null;
+let pin = '', birth = '', months = [], snap = null;
 
 // 대한민국 공휴일 (2026년 기준 — 매년 갱신 필요, 대체공휴일 포함)
 const HOLIDAYS = new Set([
@@ -687,15 +699,18 @@ function setDate(id, iso) {
 ['add-hire', 'add-leave'].forEach(bindDateGroup);
 
 // ---- 인증 ----
+const AUTH_KEY = 'solthim_auth_' + token;
 async function auth() {
   const res = await api({});
   if (res) {
-    sessionStorage.setItem('solthim_pin', pin);   // 탭이 열려 있는 동안 재입력 생략
+    // 한 번 성공하면 이 기기에서는 자동 로그인 (인증 실패 시 자동 삭제)
+    try { localStorage.setItem(AUTH_KEY, JSON.stringify({ p: pin, b: birth })); } catch (e) {}
     $('v-pin').classList.add('hidden'); $('v-main').classList.remove('hidden');
   }
 }
 async function api(extra) {
   pin = $('pin').value.trim() || pin;
+  birth = $('bday').value.trim() || birth;
   const msg = $('pin-msg'); msg.className = 'msg';
   if (DEMO) {
     months = DEMO.months;
@@ -705,10 +720,10 @@ async function api(extra) {
   }
   try {
     const r = await fetch('/api/data', { method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(Object.assign({ token, pin }, extra)) });
+      body: JSON.stringify(Object.assign({ token, pin, birth }, extra)) });
     const j = await r.json();
     if (!r.ok) {
-      sessionStorage.removeItem('solthim_pin');
+      try { localStorage.removeItem(AUTH_KEY); } catch (e) {}
       msg.className = 'msg err'; msg.textContent = j.error || '오류가 발생했습니다.';
       return null;
     }
@@ -721,14 +736,17 @@ async function api(extra) {
   }
 }
 $('btn-auth').onclick = auth;
-$('pin').addEventListener('keydown', e => { if (e.key === 'Enter') auth(); });
-// 확정(운영) 전 임시: 데모는 PIN 없이 바로 입장, 서버 모드는 성공한 PIN을 탭에 기억
+$('pin').addEventListener('input', () => { if ($('pin').value.length === 5) $('bday').focus(); });
+$('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('bday').focus(); });
+$('bday').addEventListener('keydown', e => { if (e.key === 'Enter') auth(); });
+// 데모는 바로 입장. 서버 모드는 이 기기에서 성공한 적 있으면 자동 로그인.
 if (DEMO) {
-  pin = DEMO.pin;
+  pin = DEMO.pin; birth = DEMO.birth || '';
   auth();
 } else {
-  const savedPin = sessionStorage.getItem('solthim_pin');
-  if (savedPin) { pin = savedPin; $('pin').value = savedPin; auth(); }
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) {}
+  if (saved && saved.p) { pin = saved.p; birth = saved.b || ''; auth(); }
 }
 
 // ---- 인건비 요약 (홈) ----
@@ -810,7 +828,9 @@ $('btn-submit-all').onclick = async () => {
     } else {
       if (!d.mpay) return;    // 월급 미입력 월급제는 기존 금액 유지(미제출)
       entries.push({ employeeName: e.name, payType: 'monthly', newEmployee: !!e.pending,
-        monthlyPay: d.mpay, allowances: d.allowances, memo: d.memo,
+        monthlyPay: d.mpay,
+        absentDays: (d.absent || []).slice().sort((a, b) => a - b).map(dd => `${mm}-${String(dd).padStart(2, '0')}`),
+        allowances: d.allowances, memo: d.memo,
         hireDate: d.hire || null, leaveDate: d.leave || null });
     }
   });
@@ -868,9 +888,11 @@ function draftFor(emp, mm = curMonth()) {
       wage: emp.hourly ? emp.hourly.wage : MIN_WAGE,
       restOpt: 'no',
       mpay: emp.payType === 'monthly' ? (emp.baseMonthPay || emp.monthPay || 0) : 0,
-      hire: emp.hireDate || '', leave: emp.leaveDate || ''
+      hire: emp.hireDate || '', leave: emp.leaveDate || '',
+      absent: []
     };
   }
+  if (!drafts[key].absent) drafts[key].absent = [];
   return drafts[key];
 }
 function saveDraft() {
@@ -900,7 +922,8 @@ function loadDraftIntoUI() {
   $('in-emp').textContent = emp.name;
   $('in-title').textContent = `${selYear}년 ${selMonth}월 근무 입력${emp.pending ? ' · 등록 대기' : ''}`;
   mbtns.forEach((b, i) => b.classList.toggle('on', i + 1 === selMonth));
-  rebuildCal();
+  rebuildCal(); rebuildAbsCal(); renderAbsCal();
+  $('sec-abs').classList.toggle('hidden', !draftFor(emp).absent.length);
   updateForm(); renderCal(); renderAllow();
 }
 function enterInput(emp) {
@@ -1371,8 +1394,43 @@ function rebuildCal() {
   }
 }
 
+let absCells = {};
+function rebuildAbsCal() {
+  const cal = $('cal-abs');
+  cal.innerHTML = ''; absCells = {};
+  ['일','월','화','수','목','금','토'].forEach((hh, i) =>
+    cal.insertAdjacentHTML('beforeend', `<div class="h ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${hh}</div>`));
+  const first = new Date(selYear, selMonth - 1, 1).getDay();
+  const last = new Date(selYear, selMonth, 0).getDate();
+  for (let i = 0; i < first; i++) cal.appendChild(document.createElement('div'));
+  for (let d = 1; d <= last; d++) {
+    const wd = (first + d - 1) % 7;
+    const cls = (wd === 0 || HOLIDAYS.has(ymd(d))) ? 'sun' : wd === 6 ? 'sat' : '';
+    const c = document.createElement('div');
+    c.className = 'd'; c.innerHTML = `<span class="num ${cls}">${d}</span><small></small>`;
+    c.onclick = () => {
+      const ab = draftFor(currentEmp).absent;
+      const at = ab.indexOf(d);
+      at >= 0 ? ab.splice(at, 1) : ab.push(d);
+      persistDrafts(); renderAbsCal();
+    };
+    absCells[d] = c; cal.appendChild(c);
+  }
+}
+function renderAbsCal() {
+  if (!currentEmp) return;
+  const ab = draftFor(currentEmp).absent;
+  Object.entries(absCells).forEach(([d, c]) => {
+    const on = ab.includes(Number(d));
+    c.classList.toggle('abs', on);
+    c.querySelector('small').textContent = on ? '결근' : '';
+  });
+  $('btn-abs').textContent = ab.length ? `결근일 선택 (${ab.length}일)` : '결근일 선택';
+  renderInputSummary();
+}
 function buildCal() {
   calBuilt = true;
+  $('btn-abs').onclick = () => $('sec-abs').classList.toggle('hidden');
   $('rest-no').onclick = () => { restOpt = 'no'; renderInputSummary(); };
   $('rest-yes').onclick = () => { restOpt = 'yes'; renderInputSummary(); };
   $('mode-cal').onclick = () => { inputMode = 'calendar'; updateForm(); };
@@ -1492,10 +1550,10 @@ function prorationFor(endCap) {
   let start = 1, end = monthDays;
   const h = getDate('in-hire'), l = getDate('in-leave');
   const mStart = ymd(1), mEnd = ymd(monthDays);
-  if (h) { if (h > mEnd) return { days: 0, monthDays }; if (h >= mStart) start = Number(h.slice(8, 10)); }
-  if (l) { if (l < mStart) return { days: 0, monthDays }; if (l <= mEnd) end = Number(l.slice(8, 10)); }
+  if (h) { if (h > mEnd) return { days: 0, monthDays, start: 1, end: 0 }; if (h >= mStart) start = Number(h.slice(8, 10)); }
+  if (l) { if (l < mStart) return { days: 0, monthDays, start: 1, end: 0 }; if (l <= mEnd) end = Number(l.slice(8, 10)); }
   if (endCap) end = Math.min(end, endCap);
-  return { days: Math.max(0, end - start + 1), monthDays };
+  return { days: Math.max(0, end - start + 1), monthDays, start, end };
 }
 function renderInputSummary() {
   if (!currentEmp) return;
@@ -1506,13 +1564,15 @@ function renderInputSummary() {
   if (t === 'monthly') {
     const base = numOf($('mpay'));
     const p = prorationFor();   // 입사·퇴사일 기준 일할계산 (퇴사일이 곧 월급 종료일)
-    const full = p.days >= p.monthDays;
-    mPart = full ? base : Math.round(base * p.days / p.monthDays);
+    const nAbs = draftFor(currentEmp).absent.filter(d => d >= p.start && d <= p.end).length;
+    const effDays = Math.max(0, p.days - nAbs);
+    const full = effDays >= p.monthDays;
+    mPart = full ? base : Math.round(base * effDays / p.monthDays);
     $('row-mpay').classList.remove('hidden');
     $('l-mpay').textContent = sd ? `월급 (${sd}일까지)` : '월급';
     $('s-mpay').textContent = won(mPart);
     $('row-prorate').classList.toggle('hidden', full);
-    $('s-prorate').textContent = `${p.days}일 / ${p.monthDays}일`;
+    $('s-prorate').textContent = `${effDays}일 / ${p.monthDays}일${nAbs ? ` · 결근 ${nAbs}일 제외` : ''}`;
   } else {
     $('row-mpay').classList.add('hidden');
     $('row-prorate').classList.add('hidden');

@@ -912,5 +912,6 @@ window.SOLTHIM_DEMO = {
         }
       }
     }
-  }
+  },
+  "birth": "700101"
 };
