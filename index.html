@@ -968,8 +968,12 @@ function buildMatrix(el, byMonth, groups, totalLabel, totalClass) {
   });
   const monthTot = months.map((_, i) => allRows.reduce((s, r) => s + r.vals[i], 0));
   const grand = monthTot.reduce((a, b) => a + b, 0);
+  // 표 전체 너비를 명시해야 고정 열 배분이 확실히 적용됨 (두 표의 열이 정확히 일치)
+  el.style.width = (82 + 72 + months.length * 54) + 'px';
   el.innerHTML =
-    `<thead><tr><th class="cn s1">상호</th><th class="cs s2">합계</th>`
+    `<colgroup><col style="width:82px"><col style="width:72px">`
+    + months.map(() => '<col style="width:54px">').join('') + '</colgroup>'
+    + `<thead><tr><th class="cn s1">상호</th><th class="cs s2">합계</th>`
     + months.map(mm => `<th>${Number(mm.slice(5))}월</th>`).join('') + '</tr></thead><tbody>' + body
     + `<tr class="tot-row"><td class="cn s1">${totalLabel}</td><td class="cs s2 ${totalClass}">${fmtMan(grand)}</td>`
     + monthTot.map(v => `<td class="${totalClass}">${fmtMan(v)}</td>`).join('') + '</tr></tbody>';
