@@ -125,19 +125,22 @@
   .chart { display: flex; align-items: flex-end; gap: 10px; }
   .lgd { display: flex; gap: 14px; font-size: 12px; color: #5d6b8c; margin: 6px 0 12px; }
   .lgd i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; }
-  /* 매출·매입 월별 매트릭스 (상호·합계 고정 + 월 가로 스크롤, 단위: 만원) */
-  .mwrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; }
+  /* 매출·매입 월별 매트릭스 — 왼쪽(상호·합계) 표는 스크롤 밖에 분리, 오른쪽(월)만 스크롤 */
+  .msplit { display: flex; margin: 0 -4px; }
   .mtab { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: 11.5px;
           font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .mtab th, .mtab td { box-sizing: border-box; width: 54px; padding: 8px 5px;
+  .mtab th, .mtab td { box-sizing: border-box; padding: 8px 5px;
                        border-bottom: 1px solid var(--hair); text-align: right;
                        overflow: hidden; text-overflow: ellipsis; }
   .mtab th { color: var(--mute); font-weight: 600; }
   .mtab .cn { text-align: left; width: 82px; }
   .mtab .cs { width: 72px; font-weight: 700; color: var(--ink); }
-  .mtab .s1 { position: sticky; left: 0; z-index: 2; background: rgb(236, 242, 253); }
-  .mtab .s2 { position: sticky; left: 81px; z-index: 3; background: rgb(236, 242, 253);
-              box-shadow: 4px 0 6px -3px rgba(76, 106, 180, .25); }
+  .mleft { flex: none; width: 154px; }
+  .mclip { position: relative; flex: 1; min-width: 0; }
+  .mclip::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 12px;
+                   z-index: 2; pointer-events: none;
+                   background: linear-gradient(to right, rgba(58, 88, 160, .22), rgba(58, 88, 160, 0)); }
+  .mscroll { overflow-x: auto; }
   .mtab .ghead td { font-weight: 800; color: var(--ink); text-align: left; padding-top: 12px; }
   .mtab .tot-row td { font-weight: 800; border-bottom: 0; }
   .grow { flex: 1; min-width: 0; }
@@ -376,11 +379,17 @@
       </div>
       <div class="card">
         <p class="grp c-sale" style="margin-top:0;">매출 <span class="muted" style="font-weight:500;">단위: 만원 · 옆으로 밀면 월별</span></p>
-        <div class="mwrap" id="sales-wrap"><table class="mtab" id="sales-tab"></table></div>
+        <div class="msplit">
+          <table class="mtab mleft" id="sales-left"></table>
+          <div class="mclip"><div class="mscroll" id="sales-wrap"><table class="mtab" id="sales-right"></table></div></div>
+        </div>
       </div>
       <div class="card">
         <p class="grp c-pur" style="margin-top:0;">매입 <span class="muted" style="font-weight:500;">단위: 만원 · 옆으로 밀면 월별</span></p>
-        <div class="mwrap" id="pur-wrap"><table class="mtab" id="pur-tab"></table></div>
+        <div class="msplit">
+          <table class="mtab mleft" id="pur-left"></table>
+          <div class="mclip"><div class="mscroll" id="pur-wrap"><table class="mtab" id="pur-right"></table></div></div>
+        </div>
       </div>
       <p class="muted" style="margin:0 6px;">금액은 부가세가 포함된 공급대가 기준입니다.</p>
     </div>
@@ -941,10 +950,10 @@ function fmtMan(n) {
   }
   return man.toLocaleString('ko-KR');
 }
-function buildMatrix(el, byMonth, groups, totalLabel, totalClass) {
+function collectMatrix(byMonth, groups) {
   const months = Object.keys(byMonth).sort();
-  let body = '';
-  const allRows = [];
+  const items = [];   // {type:'head', label} 또는 {type:'row', name, vals}
+  const dataRows = [];
   groups.forEach(([label, key, isList]) => {
     const rows = [];
     if (isList) {
@@ -959,24 +968,30 @@ function buildMatrix(el, byMonth, groups, totalLabel, totalClass) {
       if (vals.some(v => v > 0)) rows.push({ name: '합계', vals });
     }
     if (!rows.length) return;
-    body += `<tr class="ghead"><td class="s1" colspan="2">${label}</td><td colspan="${months.length}"></td></tr>`;
-    rows.forEach(r => {
-      allRows.push(r);
-      body += `<tr><td class="cn s1">${r.name}</td><td class="cs s2">${fmtMan(r.vals.reduce((a, b) => a + b, 0))}</td>`
-        + r.vals.map(v => `<td>${fmtMan(v)}</td>`).join('') + '</tr>';
-    });
+    items.push({ type: 'head', label });
+    rows.forEach(r => { dataRows.push(r); items.push({ type: 'row', name: r.name, vals: r.vals }); });
   });
-  const monthTot = months.map((_, i) => allRows.reduce((s, r) => s + r.vals[i], 0));
+  const monthTot = months.map((_, i) => dataRows.reduce((s, r) => s + r.vals[i], 0));
   const grand = monthTot.reduce((a, b) => a + b, 0);
-  // 표 전체 너비를 명시해야 고정 열 배분이 확실히 적용됨 (두 표의 열이 정확히 일치)
-  el.style.width = (82 + 72 + months.length * 54) + 'px';
-  el.innerHTML =
-    `<colgroup><col style="width:82px"><col style="width:72px">`
-    + months.map(() => '<col style="width:54px">').join('') + '</colgroup>'
-    + `<thead><tr><th class="cn s1">상호</th><th class="cs s2">합계</th>`
-    + months.map(mm => `<th>${Number(mm.slice(5))}월</th>`).join('') + '</tr></thead><tbody>' + body
-    + `<tr class="tot-row"><td class="cn s1">${totalLabel}</td><td class="cs s2 ${totalClass}">${fmtMan(grand)}</td>`
-    + monthTot.map(v => `<td class="${totalClass}">${fmtMan(v)}</td>`).join('') + '</tr></tbody>';
+  return { months, items, monthTot, grand };
+}
+// 왼쪽 고정 표(상호·합계)와 오른쪽 스크롤 표(월별)를 같은 행 순서로 렌더링
+function renderMatrix(leftEl, rightEl, m, totalLabel, totalClass) {
+  leftEl.innerHTML =
+    '<colgroup><col style="width:82px"><col style="width:72px"></colgroup>'
+    + '<thead><tr><th class="cn">상호</th><th class="cs">합계</th></tr></thead><tbody>'
+    + m.items.map(it => it.type === 'head'
+        ? `<tr class="ghead"><td colspan="2">${it.label}</td></tr>`
+        : `<tr><td class="cn">${it.name}</td><td class="cs">${fmtMan(it.vals.reduce((a, b) => a + b, 0))}</td></tr>`).join('')
+    + `<tr class="tot-row"><td class="cn">${totalLabel}</td><td class="cs ${totalClass}">${fmtMan(m.grand)}</td></tr></tbody>`;
+  rightEl.style.width = (m.months.length * 54) + 'px';
+  rightEl.innerHTML =
+    '<colgroup>' + m.months.map(() => '<col style="width:54px">').join('') + '</colgroup>'
+    + '<thead><tr>' + m.months.map(mm => `<th>${Number(mm.slice(5))}월</th>`).join('') + '</tr></thead><tbody>'
+    + m.items.map(it => it.type === 'head'
+        ? `<tr class="ghead"><td colspan="${m.months.length}" style="text-align:right;">&nbsp;</td></tr>`
+        : '<tr>' + it.vals.map(v => `<td>${fmtMan(v)}</td>`).join('') + '</tr>').join('')
+    + '<tr class="tot-row">' + m.monthTot.map(v => `<td class="${totalClass}">${fmtMan(v)}</td>`).join('') + '</tr></tbody>';
 }
 // 매출·매입 표 가로 스크롤 동기화
 (() => {
@@ -992,18 +1007,18 @@ function buildMatrix(el, byMonth, groups, totalLabel, totalClass) {
 
 function renderSales() {
   $('sales-asof').textContent = `자료 기준일 ${snap.sales.asOf} · 공급대가 기준`;
-  buildMatrix($('sales-tab'), snap.sales.byMonth, [
+  renderMatrix($('sales-left'), $('sales-right'), collectMatrix(snap.sales.byMonth, [
     ['세금계산서', 'taxInvoice', true],
     ['계산서', 'invoice', true],
     ['신용카드', 'card', false],
     ['현금영수증', 'cash', false],
     ['판매대행', 'agency', true]
-  ], '매출 합계', 'c-sale');
-  buildMatrix($('pur-tab'), snap.purchases.byMonth, [
+  ]), '매출 합계', 'c-sale');
+  renderMatrix($('pur-left'), $('pur-right'), collectMatrix(snap.purchases.byMonth, [
     ['세금계산서', 'taxInvoice', true],
     ['계산서', 'invoice', true],
     ['신용카드', 'card', true]
-  ], '매입 합계', 'c-pur');
+  ]), '매입 합계', 'c-pur');
 }
 
 // ---- 홈택스 자료분석 ----
