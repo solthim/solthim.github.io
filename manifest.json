@@ -1,7 +1,7 @@
 {
-  "name": "인건비 신고 도우미",
-  "short_name": "인건비",
-  "description": "여울회계법인 1팀이 발행한 우리 회사 인건비 조회·입력 (데모)",
+  "name": "우리가게 장부",
+  "short_name": "장부",
+  "description": "여울회계법인 1팀이 발행한 우리가게 매출·매입·인건비 장부 (데모)",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

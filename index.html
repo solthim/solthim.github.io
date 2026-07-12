@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-<title>인건비 신고 도우미</title>
+<title>우리가게 장부</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#1e9e50">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="인건비">
+<meta name="apple-mobile-web-app-title" content="장부">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root {
@@ -243,7 +243,7 @@
   <div id="v-pin">
     <div class="card" style="margin-top:52px; text-align:center; padding:34px 22px 28px;">
       <div style="margin-bottom:16px;"><span class="logo">솔</span></div>
-      <h1 style="margin-bottom:6px;">우리 회사 인건비</h1>
+      <h1 style="margin-bottom:6px;">우리가게 장부</h1>
       <p class="muted">여울회계법인 1팀이 확정해 발행한 자료입니다.</p>
       <label style="text-align:left;">사업자번호 뒤 5자리</label>
       <input id="pin" inputmode="numeric" maxlength="5" placeholder="00000" autocomplete="off"
@@ -594,7 +594,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v28 (2026-07-12)';
+const APP_VER = 'v29 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
