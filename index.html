@@ -528,7 +528,7 @@
           <button id="btn-aadd" class="plain">추가</button>
         </div>
         <label>메모 (선택)</label>
-        <input id="memo" maxlength="50" placeholder="주민번호는 적지 마세요 — 저장되지 않습니다">
+        <input id="memo" maxlength="50" placeholder="직원 특이사항 적어주세요 (주민번호 제외)">
         <div style="background:rgba(91,141,239,.10); border-radius:16px; padding:14px 16px; margin:16px 0 0;">
           <div class="sumline hidden" id="row-mpay"><span id="l-mpay">월급</span><b id="s-mpay"></b></div>
           <div class="sumline hidden" id="row-prorate"><span>월급 일할계산</span><b id="s-prorate"></b></div>
@@ -590,7 +590,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v19 (2026-07-12)';
+const APP_VER = 'v20 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
