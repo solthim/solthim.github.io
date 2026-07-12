@@ -309,10 +309,16 @@
       <div id="msel-sum" style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:12px;"></div>
 
       <div class="hero">
-        <p class="hl">이번 달 인건비 합계</p>
-        <p class="hn" id="t-month"></p>
-        <p class="hs" id="t-sub"></p>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <div style="min-width:0;">
+            <p class="hl">이번 달 인건비 합계</p>
+            <p class="hn" id="t-month"></p>
+            <p class="hs" id="t-sub"></p>
+          </div>
+          <button class="primary" id="btn-submit-all" style="flex:none; padding:12px 20px; white-space:nowrap;">전달하기</button>
+        </div>
       </div>
+      <div class="msg" id="sum-msg"></div>
 
       <button id="btn-daily" class="primary" style="width:100%; margin-bottom:14px;">✎ 시급제 직원 일자별 근무시간 입력</button>
       <p class="muted" style="margin:0 6px 8px;">직원을 누르면 근무 입력으로 이동합니다.</p>
@@ -347,8 +353,6 @@
           <div class="msg" id="add-msg"></div>
         </div>
       </div>
-      <button class="primary" id="btn-submit-all" style="width:100%; margin-bottom:10px;"></button>
-      <div class="msg" id="sum-msg"></div>
     </div>
 
     <!-- 매출/매입 거래 -->
@@ -538,9 +542,8 @@
           <div class="sumline"><span>수당 합계</span><b id="s-allow"></b></div>
           <div class="sumline total"><span>계산된 급여액</span><span id="s-total"></span></div>
         </div>
-        <button class="primary" id="btn-submit" style="width:100%; margin-top:14px;">담당자에게 제출</button>
         <div class="msg" id="in-msg"></div>
-        <p class="muted" style="margin-top:10px;">제출하면 담당 회계사가 확인한 뒤 반영됩니다.
+        <p class="muted" style="margin-top:10px;">입력 내용은 자동 저장됩니다. 인건비 화면의 '전달하기' 버튼으로 한 번에 제출해 주세요.
            달력에서 입력된 날짜에 0시간을 적용하면 지워집니다.</p>
       </div>
     </div>
@@ -591,7 +594,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v27 (2026-07-12)';
+const APP_VER = 'v28 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -732,7 +735,6 @@ function renderSummary() {
   }
   $('t-month').textContent = won(snap.totals.monthPay);
   $('t-sub').textContent = `올해 누계 ${won(snap.totals.yearPay)}`;
-  $('btn-submit-all').textContent = `${now.getMonth() + 1}월 인건비 전체 제출`;
   const emps = [...snap.employees].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   $('emp-list').innerHTML = emps.map((e, i) => {
     return `<div class="emp" data-i="${i}">
@@ -1271,7 +1273,6 @@ function buildCal() {
     allowances.push({ name, amount: amt });
     $('aname').value = ''; $('aamt').value = ''; renderAllow(); persistDrafts();
   };
-  $('btn-submit').onclick = submit;
 }
 
 function updateForm() {
@@ -1402,56 +1403,6 @@ function renderInputSummary() {
   $('s-total').textContent = won(mPart + hPart + aSum);
 }
 function showMsg(kind, text) { const m = $('in-msg'); m.className = 'msg ' + kind; m.textContent = text; }
-
-async function submit() {
-  if (payMode === 'monthly' && numOf($('mpay')) <= 0 && Object.keys(days).length > 0) {
-    payMode = 'hourly';   // 근무시간이 있으므로 시급제로 자동 전환해 제출
-    updateForm();
-  }
-  const memo = $('memo').value.trim();
-  const t = payMode;
-  if (/\d{6,}/.test(memo)) return showMsg('err', '메모에 주민번호로 보이는 숫자는 저장할 수 없습니다. 담당자에게 직접 전달해 주세요.');
-  const rh = readDate('in-hire'), rl = readDate('in-leave');
-  if (!rh.ok || !rl.ok) return showMsg('err', '입사일·퇴사일 날짜를 확인해 주세요. 연도 4자리, 월, 일 순서입니다.');
-  const hire = rh.v, leave = rl.v;
-  if (hire && leave && leave < hire) return showMsg('err', '퇴사일이 입사일보다 빠릅니다. 날짜를 확인해 주세요.');
-  const payload = { token, pin, targetMonth: curMonth(), employeeName: currentEmp.name,
-    payType: t, newEmployee: !!currentEmp.pending, allowances, memo,
-    hireDate: hire || null, leaveDate: leave || null };
-  const sd = swDay();
-  if (t === 'monthly') {
-    if (numOf($('mpay')) <= 0) return showMsg('err', '월급액을 입력해 주세요.');
-    payload.monthlyPay = numOf($('mpay'));
-    const p = prorationFor();
-    if (p.days < p.monthDays) payload.proration = p;
-  }
-  // 시급 근무분: 시급제이거나, 월급제 + 이달 퇴사 후 시급 근무가 있는 경우
-  const w = workSummary();
-  const hasHourlyWork = t === 'hourly' || (sd > 0 && w.hours > 0);
-  if (hasHourlyWork) {
-    if (numOf($('wage')) <= 0) return showMsg('err', '시급을 입력해 주세요.');
-    payload.hourlyWage = numOf($('wage'));
-    payload.inputMode = inputMode;
-    payload.hours = w.hours;
-    payload.restHours = w.rest;        // 주휴시간 자동계산 (참고용 — 서버·담당자 재검증)
-    payload.totalHours = w.total;
-    payload.workDays = w.workDays;
-    if (inputMode === 'calendar') {
-      const entries = Object.entries(days).filter(([d]) => Number(d) > sd);
-      if (t === 'hourly' && entries.length === 0) return showMsg('err', '달력에서 근무한 날짜를 선택해 주세요.');
-      payload.days = Object.fromEntries(entries.map(([d, h]) => [ymd(d), h]));
-    } else {
-      if (t === 'hourly' && w.hours <= 0) return showMsg('err', '총 근무시간을 입력해 주세요.');
-    }
-  }
-  if (DEMO) return showMsg('info', '데모 모드입니다 — 실제로 저장되지 않습니다. 실제 앱에서는 담당 회계사에게 전달됩니다.');
-  try {
-    const r = await fetch('/api/submit', { method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(payload) });
-    const j = await r.json();
-    showMsg(r.ok ? 'info' : 'err', r.ok ? '제출되었습니다. 담당 회계사가 확인한 뒤 반영합니다.' : (j.error || '오류가 발생했습니다.'));
-  } catch (e) { showMsg('err', '연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'); }
-}
 
 // ==== PWA ====
 // 서비스 워커 등록 (설치 가능 조건)
