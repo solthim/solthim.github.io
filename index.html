@@ -142,6 +142,26 @@
           border-radius: 12px; padding: 11px 13px; margin-top: 6px; font-size: 14px; }
   .arow b { color: var(--ink); font-variant-numeric: tabular-nums; }
   .arow .del { color: var(--red); font-size: 13px; cursor: pointer; padding: 2px 6px; font-weight: 600; }
+  /* 홈 3단 섹션 카드 */
+  .sect { display: flex; align-items: center; gap: 13px; cursor: pointer; }
+  .sect:active { transform: scale(.99); }
+  .sect .ic { width: 46px; height: 46px; border-radius: 14px; flex: none; display: flex;
+              align-items: center; justify-content: center; font-size: 18px; font-weight: 800; }
+  .sect .t1 { font-size: 13px; color: var(--mute); font-weight: 600; }
+  .sect .t2 { font-size: 20px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; margin-top: 2px; }
+  .sect .t3 { font-size: 12.5px; color: #79827b; margin-top: 2px; }
+  .grow { flex: 1; min-width: 0; }
+  .backrow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+  .backrow .bk { width: 46px; padding: 0; border-radius: 50%; font-size: 18px; flex: none; }
+  .ptab { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+  .ptab th { color: var(--mute); font-weight: 600; text-align: right; padding: 6px 4px; border-bottom: 1px solid #eef0ed; }
+  .ptab th:first-child, .ptab td:first-child { text-align: left; }
+  .ptab td { text-align: right; padding: 8px 4px; border-bottom: 1px solid #f4f5f2; color: var(--ink); }
+  .ptab tr:last-child td { border-bottom: 0; }
+  .grp { font-size: 13px; font-weight: 700; color: var(--ink); margin: 14px 0 3px; }
+  .ln { display: flex; justify-content: space-between; font-size: 13.5px; padding: 5px 0; }
+  .ln span:last-child { font-variant-numeric: tabular-nums; color: var(--ink); font-weight: 600; }
+  .ln.tot { border-top: 1px solid #eef0ed; margin-top: 4px; padding-top: 9px; font-weight: 800; }
   .msg { border-radius: 12px; padding: 12px 14px; font-size: 13.5px; margin-top: 10px; display: none; }
   .msg.err { background: #fdecea; color: #a1332a; display: block; }
   .msg.info { background: #e2f5e9; color: #157a3d; display: block; }
@@ -186,8 +206,48 @@
   <!-- 메인 -->
   <div id="v-main" class="hidden">
 
-    <!-- 인건비 요약 (홈) -->
-    <div id="v-sum">
+    <!-- 홈: 3단 (매출·매입 / 인건비 / 자료분석) -->
+    <div id="v-home">
+      <div style="margin-bottom:14px;">
+        <p class="muted" style="margin-bottom:2px;">여울회계법인 1팀 발행</p>
+        <h1 id="wp-name-h"></h1>
+        <p class="muted num" id="pub-info-h" style="margin-top:4px;"></p>
+      </div>
+      <div class="card sect" id="go-sales">
+        <div class="ic" style="background:#e7effe; color:#2457c5;">₩</div>
+        <div class="grow">
+          <p class="t1">매출 · 매입 거래</p>
+          <p class="t2 num" id="hs-sales"></p>
+          <p class="t3 num" id="hs-sales-sub"></p>
+        </div>
+        <span style="color:#c3cac4;">›</span>
+      </div>
+      <div class="card sect" id="go-labor">
+        <div class="ic" style="background:#ffeee2; color:#c05314;">급</div>
+        <div class="grow">
+          <p class="t1">인건비</p>
+          <p class="t2 num" id="hs-labor"></p>
+          <p class="t3 num" id="hs-labor-sub"></p>
+        </div>
+        <span style="color:#c3cac4;">›</span>
+      </div>
+      <div class="card sect" id="go-pnl">
+        <div class="ic" style="background:#e2f5e9; color:#157a3d;">분</div>
+        <div class="grow">
+          <p class="t1">홈택스 자료분석</p>
+          <p class="t2 num" id="hs-pnl"></p>
+          <p class="t3 num" id="hs-pnl-sub"></p>
+        </div>
+        <span style="color:#c3cac4;">›</span>
+      </div>
+    </div>
+
+    <!-- 인건비 (섹션) -->
+    <div id="v-sum" class="hidden">
+      <div class="backrow">
+        <button class="bk" aria-label="홈으로 돌아가기">←</button>
+        <span class="muted">인건비</span>
+      </div>
       <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px;">
         <div>
           <p class="muted" style="margin-bottom:2px;">여울회계법인 1팀 발행</p>
@@ -247,6 +307,45 @@
           <div class="msg" id="add-msg"></div>
         </div>
       </div>
+    </div>
+
+    <!-- 매출/매입 거래 -->
+    <div id="v-sales" class="hidden">
+      <div class="backrow">
+        <button class="bk" aria-label="홈으로 돌아가기">←</button>
+        <div>
+          <h1 style="font-size:20px;">매출 · 매입 거래</h1>
+          <p class="muted num" id="sales-asof" style="margin-top:2px;"></p>
+        </div>
+      </div>
+      <div class="card" style="padding:14px 16px;">
+        <label style="margin:0 0 6px;">조회할 달</label>
+        <select id="sales-mm" style="width:100%;"></select>
+      </div>
+      <div class="card"><p class="grp" style="margin-top:0;">매출</p><div id="sales-list"></div></div>
+      <div class="card"><p class="grp" style="margin-top:0;">매입</p><div id="pur-list"></div></div>
+      <p class="muted" style="margin:0 6px;">금액은 부가세가 포함된 공급대가 기준입니다.</p>
+    </div>
+
+    <!-- 홈택스 자료분석 -->
+    <div id="v-pnl" class="hidden">
+      <div class="backrow">
+        <button class="bk" aria-label="홈으로 돌아가기">←</button>
+        <div>
+          <h1 style="font-size:20px;">홈택스 자료분석</h1>
+          <p class="muted num" id="pnl-asof" style="margin-top:2px;"></p>
+        </div>
+      </div>
+      <div class="card">
+        <p class="muted" style="margin-bottom:8px;">단위: 만원 · 부가세 포함</p>
+        <table class="ptab">
+          <thead><tr><th>월</th><th>매출</th><th>매입</th><th>인건비</th><th>차액</th></tr></thead>
+          <tbody id="pnl-rows"></tbody>
+        </table>
+      </div>
+      <div class="card" id="pnl-notes"></div>
+      <p class="muted" style="margin:0 6px;">홈택스 신고자료 기준이며 임차료 등 다른 비용은 포함되지 않습니다.
+         금액은 부가세 포함(공급대가) 기준이라 세금 계산 결과와는 다를 수 있습니다.</p>
     </div>
 
     <!-- 근무 입력 (직원별 상세) -->
@@ -551,6 +650,7 @@ function renderSummary() {
   }).join('');
   $('emp-list').querySelectorAll('.emp').forEach(el =>
     el.onclick = () => enterInput(snap.employees[Number(el.dataset.i)]));
+  renderHome();
 }
 $('month-sel').onchange = () => api({ month: $('month-sel').value });
 
@@ -652,23 +752,142 @@ function enterInput(emp) {
   currentEmp = emp;
   loadDraftIntoUI();
   $('in-msg').className = 'msg';
-  $('v-sum').classList.add('hidden'); $('v-in').classList.remove('hidden');
-  history.pushState({ v: 'in' }, '');
-  window.scrollTo(0, 0);
+  navTo('v-in');
 }
 function switchMonth(m) {
   saveDraft();
   selMonth = m;
   loadDraftIntoUI();
 }
-function showSummary() {
-  saveDraft();
-  $('v-in').classList.add('hidden'); $('v-sum').classList.remove('hidden');
+
+// ---- 화면 이동 (홈 → 섹션 → 상세, 뒤로가기 지원) ----
+const VIEWS = ['v-home', 'v-sum', 'v-sales', 'v-pnl', 'v-in'];
+let navStack = ['v-home'];
+function showView(id) {
+  VIEWS.forEach(v => $(v).classList.toggle('hidden', v !== id));
+  window.scrollTo(0, 0);
 }
-$('btn-back').onclick = () => history.back();
+function navTo(id) {
+  navStack.push(id);
+  history.pushState({}, '');
+  showView(id);
+}
 window.addEventListener('popstate', () => {
-  if (!$('v-in').classList.contains('hidden')) showSummary();
+  if (navStack.length > 1) {
+    const leaving = navStack.pop();
+    if (leaving === 'v-in') saveDraft();
+    showView(navStack[navStack.length - 1]);
+  }
 });
+$('btn-back').onclick = () => history.back();
+document.querySelectorAll('.backrow .bk').forEach(b => { b.onclick = () => history.back(); });
+$('go-labor').onclick = () => navTo('v-sum');
+$('go-sales').onclick = () => { if (!snap.sales) return; renderSales(); navTo('v-sales'); };
+$('go-pnl').onclick = () => { if (!snap.pnl) return; renderPnl(); navTo('v-pnl'); };
+
+// ---- 홈 3단 요약 ----
+function renderHome() {
+  $('wp-name-h').textContent = snap.workplace.name;
+  $('pub-info-h').textContent = `${snap.publishedAt.slice(0, 10)} 발행`;
+  const [, m] = snap.targetMonth.split('-');
+  $('hs-labor').textContent = won(snap.totals.monthPay);
+  $('hs-labor-sub').textContent = `${Number(m)}월 · 직원 ${snap.totals.count}명 · 올해 누계 ${won(snap.totals.yearPay)}`;
+  if (snap.pnl && snap.sales) {
+    const ms = Object.keys(snap.pnl.byMonth);
+    const tS = ms.reduce((s, k) => s + snap.pnl.byMonth[k].sales, 0);
+    const tP = ms.reduce((s, k) => s + snap.pnl.byMonth[k].purchases, 0);
+    const tPr = ms.reduce((s, k) => s + snap.pnl.byMonth[k].profit, 0);
+    $('hs-sales').textContent = won(tS);
+    $('hs-sales-sub').textContent = `올해 매출 누계 · 매입 ${won(tP)} · 기준일 ${snap.sales.asOf}`;
+    $('hs-pnl').textContent = (tPr >= 0 ? '+' : '') + won(tPr);
+    $('hs-pnl-sub').textContent = '올해 누계 (매출 − 매입 − 인건비)';
+  } else {
+    $('hs-sales').textContent = '집계 전';
+    $('hs-sales-sub').textContent = '담당자가 발행하면 표시됩니다.';
+    $('hs-pnl').textContent = '집계 전';
+    $('hs-pnl-sub').textContent = '담당자가 발행하면 표시됩니다.';
+  }
+}
+
+// ---- 매출/매입 거래 ----
+const sumOf = arr => arr.reduce((a, b) => a + b.total, 0);
+const lines = items => items.map(it =>
+  `<div class="ln"><span>${it.name}</span><span>${won(it.total)}</span></div>`).join('');
+function renderSales() {
+  $('sales-asof').textContent = `자료 기준일 ${snap.sales.asOf} · 공급대가 기준`;
+  const months = Object.keys(snap.sales.byMonth).sort();
+  const sel = $('sales-mm');
+  sel.innerHTML = months.map(mm =>
+    `<option value="${mm}">${mm.slice(0, 4)}년 ${Number(mm.slice(5))}월</option>`).join('');
+  sel.value = months[months.length - 1];
+  sel.onchange = () => renderSalesMonth(sel.value);
+  renderSalesMonth(sel.value);
+}
+function renderSalesMonth(mm) {
+  const s = snap.sales.byMonth[mm], p = snap.purchases.byMonth[mm];
+  let sh = '';
+  if (s.taxInvoice.length) sh += '<p class="grp">세금계산서 (거래처별)</p>' + lines(s.taxInvoice);
+  if (s.invoice.length) sh += '<p class="grp">계산서 (거래처별)</p>' + lines(s.invoice);
+  sh += `<p class="grp">신용카드</p><div class="ln"><span>합계</span><span>${won(s.card)}</span></div>`;
+  sh += `<p class="grp">현금영수증</p><div class="ln"><span>합계</span><span>${won(s.cash)}</span></div>`;
+  if (s.agency.length) sh += '<p class="grp">판매대행 (대행사별)</p>' + lines(s.agency);
+  const sTot = sumOf(s.taxInvoice) + sumOf(s.invoice) + s.card + s.cash + sumOf(s.agency);
+  sh += `<div class="ln tot"><span>매출 합계</span><span>${won(sTot)}</span></div>`;
+  $('sales-list').innerHTML = sh;
+  let ph = '';
+  if (p.taxInvoice.length) ph += '<p class="grp">세금계산서 (거래처별)</p>' + lines(p.taxInvoice);
+  if (p.invoice.length) ph += '<p class="grp">계산서 (거래처별)</p>' + lines(p.invoice);
+  if (p.card.length) ph += '<p class="grp">신용카드 (카드사별)</p>' + lines(p.card);
+  const pTot = sumOf(p.taxInvoice) + sumOf(p.invoice) + sumOf(p.card);
+  ph += `<div class="ln tot"><span>매입 합계</span><span>${won(pTot)}</span></div>`;
+  $('pur-list').innerHTML = ph;
+}
+
+// ---- 홈택스 자료분석 ----
+function renderPnl() {
+  $('pnl-asof').textContent = `자료 기준일 ${snap.sales ? snap.sales.asOf : '-'}`;
+  const months = Object.keys(snap.pnl.byMonth).sort();
+  const manw = n => Math.round(n / 10000).toLocaleString('ko-KR');
+  let tS = 0, tP = 0, tL = 0, tPr = 0;
+  $('pnl-rows').innerHTML = months.map(mm => {
+    const r = snap.pnl.byMonth[mm];
+    tS += r.sales; tP += r.purchases; tL += r.labor; tPr += r.profit;
+    return `<tr><td>${Number(mm.slice(5))}월</td><td>${manw(r.sales)}</td><td>${manw(r.purchases)}</td>
+      <td>${manw(r.labor)}</td><td style="font-weight:800; color:${r.profit >= 0 ? '#157a3d' : '#a1332a'};">${manw(r.profit)}</td></tr>`;
+  }).join('') + `<tr><td style="font-weight:800;">합계</td><td style="font-weight:800;">${manw(tS)}</td>
+    <td style="font-weight:800;">${manw(tP)}</td><td style="font-weight:800;">${manw(tL)}</td>
+    <td style="font-weight:800; color:${tPr >= 0 ? '#157a3d' : '#a1332a'};">${manw(tPr)}</td></tr>`;
+  // 변동 요인: 최근 달 vs 전달
+  let notes = '';
+  if (months.length >= 2) {
+    const cur = months[months.length - 1], prev = months[months.length - 2];
+    const diffWon = d => (d >= 0 ? '+' : '−') + won(Math.abs(d));
+    const typeTotals = mm => {
+      const s = snap.sales.byMonth[mm];
+      return { '세금계산서 매출': sumOf(s.taxInvoice), '계산서 매출': sumOf(s.invoice),
+               '신용카드 매출': s.card, '현금영수증 매출': s.cash, '판매대행 매출': sumOf(s.agency) };
+    };
+    const partnerTotals = mm => {
+      const p = snap.purchases.byMonth[mm], out = {};
+      p.taxInvoice.concat(p.invoice, p.card).forEach(it => { out[it.name] = (out[it.name] || 0) + it.total; });
+      return out;
+    };
+    const tc = typeTotals(cur), tp = typeTotals(prev);
+    const typeDiffs = Object.keys(tc).map(k => [k, tc[k] - (tp[k] || 0)])
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 2);
+    const pc = partnerTotals(cur), pp = partnerTotals(prev);
+    const partDiffs = [...new Set([...Object.keys(pc), ...Object.keys(pp)])]
+      .map(k => [k, (pc[k] || 0) - (pp[k] || 0)])
+      .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1])).slice(0, 2);
+    const curR = snap.pnl.byMonth[cur], prevR = snap.pnl.byMonth[prev];
+    notes = `<p class="grp" style="margin-top:0;">${Number(cur.slice(5))}월 변동 요인 (전월 대비)</p>
+      <div class="ln"><span>차액 변화</span><span>${diffWon(curR.profit - prevR.profit)}</span></div>`
+      + typeDiffs.map(([k, d]) => `<div class="ln"><span>${k}</span><span>${diffWon(d)}</span></div>`).join('')
+      + partDiffs.map(([k, d]) => `<div class="ln"><span>${k} 매입</span><span>${diffWon(d)}</span></div>`).join('');
+  }
+  $('pnl-notes').innerHTML = notes;
+  $('pnl-notes').classList.toggle('hidden', !notes);
+}
 
 // ---- 근무 입력 ----
 let calBuilt = false, inputMode = 'total', payMode = 'hourly', incomeType = '근로';
