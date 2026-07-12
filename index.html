@@ -494,13 +494,12 @@
               <input id="in-hire-d" inputmode="numeric" maxlength="2">
             </div>
           </div>
-          <label style="font-weight:400;">퇴사일 — 숫자만 쭉 입력하세요 (예: 2026 07 15)</label>
+          <label style="font-weight:400;">이번 달 며칠에 퇴사했나요? (일자만 입력)</label>
           <div class="dgroup">
-            <input id="in-leave-y" inputmode="numeric" maxlength="4" placeholder="연도">
-            <input id="in-leave-m" inputmode="numeric" maxlength="2" placeholder="월">
-            <input id="in-leave-d" inputmode="numeric" maxlength="2" placeholder="일">
+            <input id="in-leave-day" inputmode="numeric" maxlength="2" placeholder="일 (예: 15)">
             <button id="in-leave-clear" class="plain" style="flex:none; padding:0 16px; color:var(--red); font-weight:700; white-space:nowrap;">삭제</button>
           </div>
+          <p class="muted hidden" id="in-leave-note" style="margin-top:7px;"></p>
           <p class="muted" style="margin-top:7px;">퇴사일을 넣으면 월급제는 자동 일할계산되고, 그 다음 날부터의 시급 근무 입력이 열립니다.</p>
         </div>
       </div>
@@ -636,7 +635,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v34 (2026-07-12)';
+const APP_VER = 'v35 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -993,7 +992,7 @@ function saveDraft() {
   d.type = payMode; d.restOpt = restOpt;
   d.wage = numOf($('wage')); d.mpay = numOf($('mpay'));
   d.memo = $('memo').value; d.mode = inputMode;
-  d.hire = getDate('in-hire'); d.leave = getDate('in-leave');
+  d.hire = getDate('in-hire');   // 퇴사일(d.leave)은 일자 입력 핸들러가 직접 관리
   persistDrafts();
 }
 function loadDraftIntoUI() {
@@ -1007,7 +1006,12 @@ function loadDraftIntoUI() {
   $('wage').value = d.wage ? d.wage.toLocaleString('ko-KR') : '';
   $('mpay').value = d.mpay ? d.mpay.toLocaleString('ko-KR') : '';
   $('memo').value = d.memo;
-  setDate('in-hire', d.hire); setDate('in-leave', d.leave);
+  setDate('in-hire', d.hire);
+  const lv = d.leave || '';
+  $('in-leave-day').value = lv.startsWith(curMonth()) ? String(Number(lv.slice(8, 10))) : '';
+  const otherMonth = lv && !lv.startsWith(curMonth());
+  $('in-leave-note').classList.toggle('hidden', !otherMonth);
+  if (otherMonth) $('in-leave-note').textContent = `등록된 퇴사일: ${lv} — 다른 달입니다. 고치려면 그 달로 이동하거나 [삭제]를 누르세요.`;
   const infoOpen = (d.leave && d.leave.startsWith(curMonth()));
   $('sec-info').classList.toggle('hidden', !infoOpen);
   $('btn-info').textContent = infoOpen ? '퇴사일 접기' : '✎ 퇴사일 입력 (퇴사한 경우)';
@@ -1453,9 +1457,10 @@ function renderPnl() {
 let calBuilt = false, inputMode = 'total', payMode = 'hourly', restOpt = 'no';
 let days = {}, selDays = new Set(), allowances = [], cells = {};
 // 월급제 + 이달 퇴사일이 있으면 그날까지 월급, 다음 날부터 시급 근무 입력 가능
+const curLeave = () => currentEmp ? (draftFor(currentEmp).leave || '') : '';
 const swDay = () => {
   if (payMode !== 'monthly') return 0;
-  const l = getDate('in-leave');
+  const l = curLeave();
   return (l && l.startsWith(curMonth())) ? Number(l.slice(8, 10)) : 0;
 };
 const now = new Date();
@@ -1534,10 +1539,32 @@ function buildCal() {
     $('btn-info').textContent = nowHidden ? '✎ 퇴사일 입력 (퇴사한 경우)' : '퇴사일 접기';
   };
   ['tot-hrs', 'tot-days'].forEach(id => $(id).addEventListener('input', renderInputSummary));
-  bindDateGroup('in-hire'); bindDateGroup('in-leave');
+  bindDateGroup('in-hire');
+  $('in-leave-day').addEventListener('input', () => {
+    const el = $('in-leave-day');
+    el.value = el.value.replace(/[^0-9]/g, '').slice(0, 2);
+    if (!currentEmp) return;
+    const d = draftFor(currentEmp);
+    const n = Number(el.value);
+    const last = new Date(selYear, selMonth, 0).getDate();
+    if (!el.value) {
+      if ((d.leave || '').startsWith(curMonth())) d.leave = '';
+    } else if (n >= 1 && n <= last) {
+      d.leave = ymd(n);
+      $('in-leave-note').classList.add('hidden');
+    } else {
+      el.value = '';
+      if ((d.leave || '').startsWith(curMonth())) d.leave = '';
+      showMsg('err', '이번 달에 없는 날짜입니다.');
+    }
+    persistDrafts();
+    updateForm();
+  });
   $('in-leave-clear').onclick = () => {
-    setDate('in-leave', '');
-    saveDraft(); updateForm();
+    $('in-leave-day').value = '';
+    if (currentEmp) { draftFor(currentEmp).leave = ''; persistDrafts(); }
+    $('in-leave-note').classList.add('hidden');
+    updateForm();
     showMsg('info', '퇴사일이 삭제되었습니다.');
   };
   commaBind($('wage')); commaBind($('aamt')); commaBind($('mpay'));
@@ -1645,7 +1672,7 @@ function workSummary() {
 function prorationFor(endCap) {
   const monthDays = new Date(selYear, selMonth, 0).getDate();
   let start = 1, end = monthDays;
-  const h = getDate('in-hire'), l = getDate('in-leave');
+  const h = getDate('in-hire'), l = curLeave();
   const mStart = ymd(1), mEnd = ymd(monthDays);
   if (h) { if (h > mEnd) return { days: 0, monthDays, start: 1, end: 0 }; if (h >= mStart) start = Number(h.slice(8, 10)); }
   if (l) { if (l < mStart) return { days: 0, monthDays, start: 1, end: 0 }; if (l <= mEnd) end = Number(l.slice(8, 10)); }
