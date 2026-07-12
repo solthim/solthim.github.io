@@ -125,6 +125,20 @@
   .chart { display: flex; align-items: flex-end; gap: 10px; }
   .lgd { display: flex; gap: 14px; font-size: 12px; color: #5d6b8c; margin: 6px 0 12px; }
   .lgd i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; }
+  /* 매출·매입 월별 매트릭스 (왼쪽 3칸 고정 + 월 가로 스크롤) */
+  .mwrap { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -4px; }
+  .mtab { border-collapse: separate; border-spacing: 0; font-size: 12px;
+          font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .mtab th, .mtab td { padding: 8px 8px; border-bottom: 1px solid var(--hair); text-align: right; }
+  .mtab th { color: var(--mute); font-weight: 600; }
+  .mtab .c1 { text-align: left; min-width: 62px; max-width: 62px; font-weight: 700; color: var(--ink); }
+  .mtab .c2 { text-align: left; min-width: 92px; max-width: 92px; overflow: hidden; text-overflow: ellipsis; }
+  .mtab .c3 { min-width: 96px; font-weight: 700; color: var(--ink); }
+  .mtab .s1 { position: sticky; left: 0; z-index: 2; background: rgba(236, 242, 253, .97); }
+  .mtab .s2 { position: sticky; left: 62px; z-index: 2; background: rgba(236, 242, 253, .97); }
+  .mtab .s3 { position: sticky; left: 154px; z-index: 2; background: rgba(236, 242, 253, .97);
+              box-shadow: 4px 0 6px -3px rgba(76, 106, 180, .25); }
+  .mtab .tot-row td { font-weight: 800; border-bottom: 0; }
   .grow { flex: 1; min-width: 0; }
   .backrow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .backrow .bk { width: 46px; padding: 0; border-radius: 50%; font-size: 18px; flex: none; }
@@ -359,19 +373,13 @@
           <p class="muted num" id="sales-asof" style="margin-top:2px;"></p>
         </div>
       </div>
-      <div class="card" style="padding:14px 16px;">
-        <label style="margin:0 0 6px;">조회할 달</label>
-        <div id="sales-mm" style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;"></div>
-      </div>
-      <div class="card"><p class="grp c-sale" style="margin-top:0;">매출</p><div id="sales-list"></div></div>
-      <div class="card"><p class="grp c-pur" style="margin-top:0;">매입</p><div id="pur-list"></div></div>
       <div class="card">
-        <p class="grp" style="margin-top:0;">월별 매출 · 매입</p>
-        <div class="lgd">
-          <span><i style="background:#d43a35;"></i>매출</span>
-          <span><i style="background:#2f6fd8;"></i>매입</span>
-        </div>
-        <div id="sales-chart" class="chart"></div>
+        <p class="grp c-sale" style="margin-top:0;">매출 <span class="muted" style="font-weight:500;">단위: 원 · 옆으로 밀면 월별 금액</span></p>
+        <div class="mwrap"><table class="mtab" id="sales-tab"></table></div>
+      </div>
+      <div class="card">
+        <p class="grp c-pur" style="margin-top:0;">매입 <span class="muted" style="font-weight:500;">단위: 원 · 옆으로 밀면 월별 금액</span></p>
+        <div class="mwrap"><table class="mtab" id="pur-tab"></table></div>
       </div>
       <p class="muted" style="margin:0 6px;">금액은 부가세가 포함된 공급대가 기준입니다.</p>
     </div>
@@ -920,51 +928,54 @@ function drawChart(el, months, series) {
     </div>`).join('');
 }
 
-// ---- 매출/매입 거래 ----
+// ---- 매출/매입 거래 (월별 매트릭스) ----
 const sumOf = arr => arr.reduce((a, b) => a + b.total, 0);
-const lines = items => items.map(it =>
-  `<div class="ln"><span>${it.name}</span><span>${won(it.total)}</span></div>`).join('');
+function buildMatrix(el, byMonth, groups, totalLabel, totalClass) {
+  const months = Object.keys(byMonth).sort();
+  const fmt = n => n ? n.toLocaleString('ko-KR') : '';
+  const rows = [];
+  groups.forEach(([label, key, isList]) => {
+    if (isList) {
+      const names = [];
+      months.forEach(mm => (byMonth[mm][key] || []).forEach(it => {
+        if (!names.includes(it.name)) names.push(it.name);
+      }));
+      names.forEach((name, idx) => {
+        const vals = months.map(mm =>
+          ((byMonth[mm][key] || []).find(x => x.name === name) || {}).total || 0);
+        rows.push({ label: idx === 0 ? label : '', name, vals });
+      });
+    } else {
+      const vals = months.map(mm => byMonth[mm][key] || 0);
+      if (vals.some(v => v > 0)) rows.push({ label, name: '합계', vals });
+    }
+  });
+  const monthTot = months.map((_, i) => rows.reduce((s, r) => s + r.vals[i], 0));
+  const grand = monthTot.reduce((a, b) => a + b, 0);
+  el.innerHTML =
+    `<thead><tr><th class="c1 s1">구분</th><th class="c2 s2">상호</th><th class="c3 s3">합계</th>`
+    + months.map(mm => `<th>${Number(mm.slice(5))}월</th>`).join('') + '</tr></thead><tbody>'
+    + rows.map(r => `<tr><td class="c1 s1">${r.label}</td><td class="c2 s2">${r.name}</td>`
+        + `<td class="c3 s3">${fmt(r.vals.reduce((a, b) => a + b, 0))}</td>`
+        + r.vals.map(v => `<td>${fmt(v)}</td>`).join('') + '</tr>').join('')
+    + `<tr class="tot-row"><td class="c1 s1">${totalLabel}</td><td class="c2 s2"></td>`
+    + `<td class="c3 s3 ${totalClass}">${fmt(grand)}</td>`
+    + monthTot.map(v => `<td class="${totalClass}">${fmt(v)}</td>`).join('') + '</tr></tbody>';
+}
 function renderSales() {
   $('sales-asof').textContent = `자료 기준일 ${snap.sales.asOf} · 공급대가 기준`;
-  const months = Object.keys(snap.sales.byMonth).sort();
-  const box = $('sales-mm');
-  box.innerHTML = '';
-  months.forEach(mm => {
-    const b = document.createElement('button');
-    b.className = 'mbtn';
-    b.textContent = `${Number(mm.slice(5))}월`;
-    b.onclick = () => {
-      box.querySelectorAll('.mbtn').forEach(x => x.classList.remove('on'));
-      b.classList.add('on');
-      renderSalesMonth(mm);
-    };
-    box.appendChild(b);
-  });
-  box.lastChild.classList.add('on');
-  renderSalesMonth(months[months.length - 1]);
-  drawChart($('sales-chart'), months, [
-    { color: C_SALE, get: mm => { const s = snap.sales.byMonth[mm]; return sumOf(s.taxInvoice) + sumOf(s.invoice) + s.card + s.cash + sumOf(s.agency); } },
-    { color: C_PUR, get: mm => { const p = snap.purchases.byMonth[mm]; return sumOf(p.taxInvoice) + sumOf(p.invoice) + sumOf(p.card); } }
-  ]);
-}
-function renderSalesMonth(mm) {
-  const s = snap.sales.byMonth[mm], p = snap.purchases.byMonth[mm];
-  let sh = '';
-  if (s.taxInvoice.length) sh += '<p class="grp">세금계산서 (거래처별)</p>' + lines(s.taxInvoice);
-  if (s.invoice.length) sh += '<p class="grp">계산서 (거래처별)</p>' + lines(s.invoice);
-  sh += `<p class="grp">신용카드</p><div class="ln"><span>합계</span><span>${won(s.card)}</span></div>`;
-  sh += `<p class="grp">현금영수증</p><div class="ln"><span>합계</span><span>${won(s.cash)}</span></div>`;
-  if (s.agency.length) sh += '<p class="grp">판매대행 (대행사별)</p>' + lines(s.agency);
-  const sTot = sumOf(s.taxInvoice) + sumOf(s.invoice) + s.card + s.cash + sumOf(s.agency);
-  sh += `<div class="ln tot"><span>매출 합계</span><span class="c-sale">${won(sTot)}</span></div>`;
-  $('sales-list').innerHTML = sh;
-  let ph = '';
-  if (p.taxInvoice.length) ph += '<p class="grp">세금계산서 (거래처별)</p>' + lines(p.taxInvoice);
-  if (p.invoice.length) ph += '<p class="grp">계산서 (거래처별)</p>' + lines(p.invoice);
-  if (p.card.length) ph += '<p class="grp">신용카드 (카드사별)</p>' + lines(p.card);
-  const pTot = sumOf(p.taxInvoice) + sumOf(p.invoice) + sumOf(p.card);
-  ph += `<div class="ln tot"><span>매입 합계</span><span class="c-pur">${won(pTot)}</span></div>`;
-  $('pur-list').innerHTML = ph;
+  buildMatrix($('sales-tab'), snap.sales.byMonth, [
+    ['세금계산서', 'taxInvoice', true],
+    ['계산서', 'invoice', true],
+    ['신용카드', 'card', false],
+    ['현금영수증', 'cash', false],
+    ['판매대행', 'agency', true]
+  ], '매출 합계', 'c-sale');
+  buildMatrix($('pur-tab'), snap.purchases.byMonth, [
+    ['세금계산서', 'taxInvoice', true],
+    ['계산서', 'invoice', true],
+    ['신용카드', 'card', true]
+  ], '매입 합계', 'c-pur');
 }
 
 // ---- 홈택스 자료분석 ----
