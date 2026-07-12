@@ -582,7 +582,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v22 (2026-07-12)';
+const APP_VER = 'v23 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
@@ -606,6 +606,7 @@ const HOLIDAYS = new Set([
 const typeChip = t => t === 'hourly'
   ? '<span class="chip c-hour">시급제</span>' : '<span class="chip c-month">월급제</span>';
 const insChip = s => {
+  if (!s || s === '미가입') return '<span class="chip c-etc">가입제외</span>';
   const cls = s === '4대보험' ? 'c-ins4'
     : (s === '고용·산재' || s === '고용산재') ? 'c-insE'
     : s === '사업소득' ? 'c-biz' : 'c-etc';
@@ -721,16 +722,12 @@ function renderSummary() {
   }
   $('t-month').textContent = won(snap.totals.monthPay);
   $('t-sub').textContent = `올해 누계 ${won(snap.totals.yearPay)}`;
-  const fmtMD = iso => `${Number(iso.slice(5, 7))}.${Number(iso.slice(8, 10))}`;
   const emps = [...snap.employees].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   $('emp-list').innerHTML = emps.map((e, i) => {
-    let dateChips = '';
-    if (e.hireDate && e.hireDate.startsWith(snap.targetMonth)) dateChips += `<span class="chip c-join">${fmtMD(e.hireDate)} 입사</span>`;
-    if (e.leaveDate && e.leaveDate.startsWith(snap.targetMonth)) dateChips += `<span class="chip c-leave">${fmtMD(e.leaveDate)} 퇴사</span>`;
     return `<div class="emp" data-i="${i}">
       <div class="mid">
         <div><span class="namebox">${e.name}</span></div>
-        <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}${dateChips}</div>
+        <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}</div>
         <p class="ytd num">올해 총급여 ${won(e.yearPay)}</p>
       </div>
       <div class="right"><span class="pay">${won(e.monthPay)}</span><span class="arrow">›</span></div>
