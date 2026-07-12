@@ -439,7 +439,43 @@ window.SOLTHIM_DEMO = {
           "insurance": "4대보험",
           "hireDate": "2024-03-04",
           "monthPay": 2800000,
-          "yearPay": 16800000
+          "yearPay": 16800000,
+          "payslip": {
+            "confirmedAt": "2026-07-16",
+            "pay": [
+              {
+                "name": "기본급",
+                "amount": 2800000
+              }
+            ],
+            "deductions": [
+              {
+                "name": "국민연금",
+                "amount": 126000
+              },
+              {
+                "name": "건강보험",
+                "amount": 99260
+              },
+              {
+                "name": "장기요양보험",
+                "amount": 12850
+              },
+              {
+                "name": "고용보험",
+                "amount": 25200
+              },
+              {
+                "name": "소득세",
+                "amount": 84850
+              },
+              {
+                "name": "지방소득세",
+                "amount": 8480
+              }
+            ],
+            "netPay": 2443360
+          }
         },
         {
           "name": "김알바",
@@ -458,7 +494,27 @@ window.SOLTHIM_DEMO = {
               "name": "식대",
               "amount": 100000
             }
-          ]
+          ],
+          "payslip": {
+            "confirmedAt": "2026-07-16",
+            "pay": [
+              {
+                "name": "근무급여 (87시간)",
+                "amount": 913500
+              },
+              {
+                "name": "식대",
+                "amount": 100000
+              }
+            ],
+            "deductions": [
+              {
+                "name": "고용보험",
+                "amount": 8220
+              }
+            ],
+            "netPay": 1005280
+          }
         },
         {
           "name": "박직원",

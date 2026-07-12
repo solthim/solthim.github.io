@@ -190,6 +190,9 @@
   .emp .pay { font-weight: 800; font-size: 15.5px; color: var(--ink); }
   .emp .arrow { color: #aab5cd; margin-left: 2px; font-weight: 400; }
   .sub { font-size: 12.5px; color: #7d8aa6; margin-top: 3px; }
+  .slipbtn { display: inline-block; margin-top: 7px; font-size: 12px; font-weight: 700;
+             color: var(--blue-deep); background: rgba(91, 141, 239, .16);
+             padding: 4px 11px; border-radius: 999px; cursor: pointer; }
 
   .sumline { display: flex; justify-content: space-between; font-size: 13.5px; padding: 4px 0; }
   .sumline b, .sumline span:last-child { font-variant-numeric: tabular-nums; }
@@ -433,6 +436,23 @@
       </div>
     </div>
 
+    <!-- 급여명세서 -->
+    <div id="v-slip" class="hidden">
+      <div class="backrow">
+        <button class="bk" aria-label="인건비로 돌아가기">←</button>
+        <div>
+          <h1 style="font-size:20px;">급여명세서</h1>
+          <p class="muted num" id="slip-sub" style="margin-top:2px;"></p>
+        </div>
+      </div>
+      <div class="card" id="slip-body" style="padding:22px 20px;"></div>
+      <div class="row">
+        <button class="primary" id="slip-share" style="flex:1;">공유하기 (카카오톡 등)</button>
+        <button id="slip-save" style="flex:1;">사진으로 저장</button>
+      </div>
+      <div class="msg" id="slip-msg"></div>
+    </div>
+
     <!-- 근무 입력 (직원별 상세) -->
 
     <div id="v-in" class="hidden">
@@ -594,7 +614,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v29 (2026-07-12)';
+const APP_VER = 'v30 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -743,11 +763,15 @@ function renderSummary() {
         <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}</div>
         <p class="ytd num">올해 총급여 ${won(e.yearPay)}</p>
       </div>
-      <div class="right"><span class="pay">${won(e.monthPay)}</span><span class="arrow">›</span></div>
+      <div class="right"><span class="pay">${won(e.monthPay)}</span><span class="arrow">›</span>${e.payslip ? '<div><span class="slipbtn">명세서</span></div>' : ''}</div>
     </div>`;
   }).join('');
   $('emp-list').querySelectorAll('.emp').forEach(el =>
-    el.onclick = () => enterInput(emps[Number(el.dataset.i)]));
+    el.onclick = ev => {
+      const emp = emps[Number(el.dataset.i)];
+      if (ev.target.classList.contains('slipbtn')) { openSlip(emp); return; }
+      enterInput(emp);
+    });
   renderHome();
 }
 
@@ -894,7 +918,7 @@ function switchMonth(m) {
 }
 
 // ---- 화면 이동 (홈 → 섹션 → 상세, 뒤로가기 지원) ----
-const VIEWS = ['v-home', 'v-sum', 'v-sales', 'v-pnl', 'v-daily', 'v-in'];
+const VIEWS = ['v-home', 'v-sum', 'v-sales', 'v-pnl', 'v-daily', 'v-slip', 'v-in'];
 let navStack = ['v-home'];
 function showView(id) {
   VIEWS.forEach(v => $(v).classList.toggle('hidden', v !== id));
@@ -917,6 +941,116 @@ document.querySelectorAll('.backrow .bk').forEach(b => { b.onclick = () => histo
 $('go-labor').onclick = () => navTo('v-sum');
 $('go-sales').onclick = () => { if (!snap.sales) return; renderSales(); navTo('v-sales'); };
 $('go-pnl').onclick = () => { if (!snap.pnl) return; renderPnl(); navTo('v-pnl'); };
+// ---- 급여명세서 ----
+let slipEmp = null;
+function openSlip(emp) {
+  slipEmp = emp;
+  const ps = emp.payslip;
+  const [yy, mm] = snap.targetMonth.split('-');
+  const paySum = ps.pay.reduce((a, b) => a + b.amount, 0);
+  const dedSum = ps.deductions.reduce((a, b) => a + b.amount, 0);
+  $('slip-sub').textContent = `${emp.name} · ${yy}년 ${Number(mm)}월`;
+  $('slip-body').innerHTML =
+    `<p class="muted" style="text-align:center;">${snap.workplace.name}</p>
+     <h1 style="text-align:center; font-size:20px; margin:4px 0 3px;">${yy}년 ${Number(mm)}월 급여명세서</h1>
+     <p class="muted num" style="text-align:center; margin-bottom:8px;">${emp.name}${ps.confirmedAt ? ' · 담당 회계사 확인 ' + ps.confirmedAt : ''}</p>
+     <p class="grp">지급 내역</p>`
+    + ps.pay.map(it => `<div class="ln"><span>${it.name}</span><span>${won(it.amount)}</span></div>`).join('')
+    + `<div class="ln tot"><span>지급 합계</span><span>${won(paySum)}</span></div>
+     <p class="grp">공제 내역</p>`
+    + ps.deductions.map(it => `<div class="ln"><span>${it.name}</span><span>−${won(it.amount)}</span></div>`).join('')
+    + `<div class="ln tot"><span>공제 합계</span><span>−${won(dedSum)}</span></div>
+     <div class="ln tot" style="font-size:17px; color:var(--blue-deep); border-top:2px solid var(--hair);">
+       <span>실지급액</span><span>${won(ps.netPay != null ? ps.netPay : paySum - dedSum)}</span></div>
+     <p class="muted" style="text-align:center; margin-top:14px; font-size:12px;">여울회계법인 1팀 · 우리가게 장부</p>`;
+  $('slip-msg').className = 'msg';
+  navTo('v-slip');
+}
+function drawSlip() {
+  const ps = slipEmp.payslip;
+  const [yy, mm] = snap.targetMonth.split('-');
+  const paySum = ps.pay.reduce((a, b) => a + b.amount, 0);
+  const dedSum = ps.deductions.reduce((a, b) => a + b.amount, 0);
+  const net = ps.netPay != null ? ps.netPay : paySum - dedSum;
+  const F = '"Pretendard Variable", Pretendard, "Malgun Gothic", sans-serif';
+  const W = 720;
+  const rows = ps.pay.length + ps.deductions.length;
+  const H = 400 + rows * 38;
+  const cv = document.createElement('canvas');
+  const s = 2;
+  cv.width = W * s; cv.height = H * s;
+  const x = cv.getContext('2d');
+  x.scale(s, s);
+  x.fillStyle = '#ffffff'; x.fillRect(0, 0, W, H);
+  let yP = 58;
+  x.textAlign = 'center';
+  x.fillStyle = '#8794ad'; x.font = '15px ' + F;
+  x.fillText(snap.workplace.name, W / 2, yP); yP += 34;
+  x.fillStyle = '#223052'; x.font = '800 27px ' + F;
+  x.fillText(`${yy}년 ${Number(mm)}월 급여명세서`, W / 2, yP); yP += 28;
+  x.fillStyle = '#8794ad'; x.font = '14px ' + F;
+  x.fillText(`${slipEmp.name}${ps.confirmedAt ? ' · 담당 회계사 확인 ' + ps.confirmedAt : ''}`, W / 2, yP); yP += 22;
+  const L = 56, R = W - 56;
+  const hr = () => { x.strokeStyle = 'rgba(96,120,180,.25)'; x.beginPath(); x.moveTo(L, yP); x.lineTo(R, yP); x.stroke(); };
+  const section = (title, items, sign) => {
+    yP += 46;
+    x.textAlign = 'left'; x.fillStyle = '#223052'; x.font = '700 16px ' + F;
+    x.fillText(title, L, yP); yP += 10; hr();
+    items.forEach(it => {
+      yP += 30;
+      x.fillStyle = '#3e4d6e'; x.font = '15px ' + F; x.textAlign = 'left';
+      x.fillText(it.name, L, yP);
+      x.textAlign = 'right'; x.fillStyle = '#223052'; x.font = '600 15px ' + F;
+      x.fillText(sign + won(it.amount), R, yP);
+    });
+    yP += 12; hr();
+  };
+  section('지급 내역', ps.pay, '');
+  yP += 26;
+  x.textAlign = 'right'; x.fillStyle = '#223052'; x.font = '800 15px ' + F;
+  x.fillText(won(paySum), R, yP);
+  x.textAlign = 'left'; x.fillText('지급 합계', L, yP);
+  section('공제 내역', ps.deductions, '−');
+  yP += 26;
+  x.textAlign = 'left'; x.fillStyle = '#223052'; x.font = '800 15px ' + F;
+  x.fillText('공제 합계', L, yP);
+  x.textAlign = 'right'; x.fillText('−' + won(dedSum), R, yP);
+  yP += 20; x.strokeStyle = 'rgba(96,120,180,.5)'; x.beginPath(); x.moveTo(L, yP); x.lineTo(R, yP); x.stroke();
+  yP += 40;
+  x.textAlign = 'left'; x.fillStyle = '#223052'; x.font = '700 18px ' + F;
+  x.fillText('실지급액', L, yP);
+  x.textAlign = 'right'; x.fillStyle = '#2f5fc9'; x.font = '800 26px ' + F;
+  x.fillText(won(net), R, yP);
+  yP += 44;
+  x.textAlign = 'center'; x.fillStyle = '#8794ad'; x.font = '12px ' + F;
+  x.fillText('여울회계법인 1팀 · 우리가게 장부', W / 2, yP);
+  return cv;
+}
+async function exportSlip(mode) {
+  const m = $('slip-msg');
+  const [yy, mmn] = snap.targetMonth.split('-');
+  drawSlip().toBlob(async blob => {
+    const fname = `급여명세서_${slipEmp.name}_${yy}-${mmn}.png`;
+    const file = new File([blob], fname, { type: 'image/png' });
+    if (mode === 'share' && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: '급여명세서' });
+        return;
+      } catch (e) { /* 사용자가 공유 취소 → 아래 안내 없이 종료 */ return; }
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = fname;
+    a.click();
+    m.className = 'msg info';
+    m.textContent = mode === 'share'
+      ? '이 기기에서는 바로 공유가 안 되어 이미지로 저장했습니다. 사진첩/파일에서 카카오톡으로 보내 주세요.'
+      : '이미지로 저장되었습니다. 사진첩(파일)에서 확인하세요.';
+  }, 'image/png');
+}
+$('slip-share').onclick = () => exportSlip('share');
+$('slip-save').onclick = () => exportSlip('save');
+
 // ---- 일자별 근무 입력 (시급제) ----
 let dailyDay = null;
 const dailyMonth = () => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
