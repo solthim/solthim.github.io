@@ -13,7 +13,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   :root {
-    --card: rgba(255, 255, 255, .5);
+    --card: rgba(255, 255, 255, .62);
     --ink: #223052;
     --body-c: #3e4d6e;
     --mute: #8794ad;
@@ -27,7 +27,6 @@
     --sat: #3b82f6;
     --hair: rgba(96, 120, 180, .16);
     --glass-b: 1px solid rgba(255, 255, 255, .65);
-    --glass: blur(16px) saturate(1.5);
     --shadow: 0 8px 28px rgba(76, 106, 180, .18);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -44,14 +43,14 @@
   .wrap { max-width: 560px; margin: 0 auto; padding: 18px 16px 48px; }
   .card { background: var(--card); border: var(--glass-b); border-radius: 22px; padding: 18px;
           margin-bottom: 14px; box-shadow: var(--shadow);
-          backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+ }
   .muted { color: var(--mute); font-size: 13px; }
   h1 { font-size: 22px; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
   .num, .pay { font-variant-numeric: tabular-nums; }
-  button { font: inherit; border: var(--glass-b); border-radius: 16px; background: rgba(255, 255, 255, .55);
+  button { font: inherit; border: var(--glass-b); border-radius: 16px; background: rgba(255, 255, 255, .68);
            color: var(--ink); padding: 13px 15px; cursor: pointer; min-height: 46px; font-weight: 600;
-           box-shadow: 0 4px 14px rgba(76, 106, 180, .14); transition: transform .1s;
-           backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+           box-shadow: 0 4px 14px rgba(76, 106, 180, .14);
+ }
   button:active { transform: scale(.97); }
   button.primary { background: linear-gradient(135deg, var(--blue-2), var(--blue));
                    border-color: rgba(255, 255, 255, .4); color: #fff;
@@ -59,7 +58,7 @@
   button.plain { background: rgba(255, 255, 255, .38); box-shadow: none; }
   button:disabled { opacity: .5; }
   input, select { font: inherit; border: var(--glass-b); border-radius: 16px; padding: 12px 14px;
-                  width: 100%; background: rgba(255, 255, 255, .55); color: var(--ink); min-height: 46px; }
+                  width: 100%; background: rgba(255, 255, 255, .68); color: var(--ink); min-height: 46px; }
   input::placeholder { color: #a4b0c6; }
   input:focus, select:focus { outline: none; border-color: var(--blue);
                               box-shadow: 0 0 0 3px rgba(91, 141, 239, .22); }
@@ -107,8 +106,8 @@
 
   /* 홈 3단 카드 — 유리 패널 + 섹션 색 라벨 */
   .hcard { border-radius: 24px; padding: 20px; margin-bottom: 12px; cursor: pointer; position: relative;
-           transition: transform .1s; background: var(--card); border: var(--glass-b); color: var(--ink);
-           box-shadow: var(--shadow); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+            background: var(--card); border: var(--glass-b); color: var(--ink);
+           box-shadow: var(--shadow); }
   .hcard:active { transform: scale(.985); }
   .hcard .harrow { position: absolute; top: 18px; right: 18px; font-size: 20px; color: var(--mute); }
   .hcard .hl { font-size: 13px; font-weight: 700; }
@@ -164,14 +163,14 @@
   /* 인건비 히어로/스탯 — 유리 패널 */
   .hero { background: var(--card); border: var(--glass-b); border-radius: 24px; padding: 22px 20px;
           color: var(--ink); margin-bottom: 12px; box-shadow: var(--shadow);
-          backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+ }
   .hero .hl { font-size: 13px; font-weight: 700; color: var(--blue-deep); }
   .hero .hn { font-size: 34px; font-weight: 800; letter-spacing: -.02em; margin: 4px 0 2px;
               font-variant-numeric: tabular-nums; }
   .hero .hs { font-size: 13px; color: var(--mute); font-variant-numeric: tabular-nums; }
   .stats { background: var(--card); border: var(--glass-b); border-radius: 22px; padding: 16px 14px;
            color: var(--ink); margin-bottom: 14px; display: flex; text-align: center;
-           box-shadow: var(--shadow); backdrop-filter: var(--glass); -webkit-backdrop-filter: var(--glass); }
+           box-shadow: var(--shadow); }
   .stats > div { flex: 1; }
   .stats b { display: block; font-size: 21px; font-weight: 800; font-variant-numeric: tabular-nums; }
   .stats span { font-size: 12px; color: var(--mute); }
@@ -222,8 +221,7 @@
   .hidden { display: none !important; }
 
   /* 카카오톡 안내 화면 + 설치 배너 */
-  #kakao-guide { position: fixed; inset: 0; z-index: 100; background: rgba(238, 244, 255, .92);
-                 backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  #kakao-guide { position: fixed; inset: 0; z-index: 100; background: rgba(238, 244, 255, .97);
                  padding: 44px 22px; text-align: center; overflow-y: auto; }
   #kakao-guide h2 { font-size: 25px; font-weight: 800; color: var(--ink);
                     line-height: 1.4; margin: 18px 0 10px; }
@@ -232,15 +230,10 @@
                        border-radius: 18px; padding: 18px 16px; margin: 12px 0; font-size: 19px;
                        font-weight: 600; text-align: left; line-height: 1.5; color: var(--ink); }
   #install-banner { position: fixed; left: 12px; right: 12px; bottom: 12px; z-index: 90;
-                    background: rgba(255, 255, 255, .85); border: var(--glass-b);
-                    backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+                    background: rgba(255, 255, 255, .96); border: var(--glass-b);
                     border-radius: 18px; max-width: 536px; margin: 0 auto;
                     box-shadow: 0 8px 28px rgba(40, 60, 120, .25); padding: 16px; display: none; }
-  #v-sum, #v-in, #v-home, #v-sales, #v-pnl { animation: rise .22s ease-out; }
-  @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-  @media (prefers-reduced-motion: reduce) {
-    * { animation: none !important; transition: none !important; }
-  }
+
 </style>
 </head>
 <body>
@@ -589,7 +582,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v21 (2026-07-12)';
+const APP_VER = 'v22 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
