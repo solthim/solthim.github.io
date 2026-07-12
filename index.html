@@ -193,6 +193,9 @@
   .slipbtn { display: inline-block; margin-top: 7px; font-size: 12px; font-weight: 700;
              color: var(--blue-deep); background: rgba(91, 141, 239, .16);
              padding: 4px 11px; border-radius: 999px; cursor: pointer; }
+  .slipwait { display: inline-block; margin-top: 7px; font-size: 12px; font-weight: 700;
+              color: #8a6d1f; background: rgba(250, 199, 117, .35);
+              padding: 4px 11px; border-radius: 999px; }
 
   .sumline { display: flex; justify-content: space-between; font-size: 13.5px; padding: 4px 0; }
   .sumline b, .sumline span:last-child { font-variant-numeric: tabular-nums; }
@@ -326,8 +329,13 @@
           </div>
           <button class="primary" id="btn-submit-all" style="flex:none; padding:12px 20px; white-space:nowrap;">전달하기</button>
         </div>
+        <div id="note-wrap">
+          <label style="margin-top:12px;">특이사항 메모 (선택 — 전달하기와 함께 담당자에게 갑니다)</label>
+          <input id="batch-note" maxlength="100" placeholder="예: 김알바 15일 퇴사했어요. 보너스 있어요.">
+        </div>
       </div>
       <div class="msg" id="sum-msg"></div>
+      <p class="muted num hidden" id="sent-log" style="margin:8px 6px 10px; font-size:12px; white-space:pre-line;"></p>
 
       <button id="btn-daily" class="primary" style="width:100%; margin-bottom:14px;">✎ 시급제 직원 일자별 근무시간 입력</button>
       <p class="muted" id="sum-guide" style="margin:0 6px 8px;">직원을 누르면 근무 입력으로 이동합니다.</p>
@@ -626,13 +634,16 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v32 (2026-07-12)';
+const APP_VER = 'v33 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
 const DEMO = window.SOLTHIM_DEMO || null;
 let pin = '', birth = '', months = [], snap = null;
+const SENT_KEY = 'solthim_sent', INV_KEY = 'solthim_slip_invalid';
+const loadJS = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
+const saveJS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
 // 대한민국 공휴일 (2026년 기준 — 매년 갱신 필요, 대체공휴일 포함)
 const HOLIDAYS = new Set([
@@ -785,11 +796,21 @@ function renderSummary() {
   // 확인형 사업장(workplace.laborInput === 'firm'): 담당자가 급여 확정 — 입력 UI 숨김, 열람·명세서만
   const firmMode = snap.workplace && snap.workplace.laborInput === 'firm';
   $('btn-submit-all').classList.toggle('hidden', firmMode);
+  $('note-wrap').classList.toggle('hidden', firmMode);
   $('btn-daily').classList.toggle('hidden', firmMode);
   $('add-card').classList.toggle('hidden', firmMode);
   $('sum-guide').textContent = firmMode
     ? '담당자가 확정한 급여 내역입니다. [명세서]를 누르면 급여명세서를 볼 수 있습니다.'
     : '직원을 누르면 근무 입력으로 이동합니다.';
+  // 명세서 무효 표시 — 새 발행이 내 제출보다 나중이면 해제 (담당자가 재확인했다고 간주)
+  const inv = loadJS(INV_KEY, {});
+  let invChanged = false;
+  Object.entries(inv).forEach(([k, t]) => {
+    if (k.endsWith('@' + snap.targetMonth) && snap.publishedAt && Date.parse(snap.publishedAt) > Date.parse(t)) {
+      delete inv[k]; invChanged = true;
+    }
+  });
+  if (invChanged) saveJS(INV_KEY, inv);
   const emps = [...snap.employees].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   $('emp-list').innerHTML = emps.map((e, i) => {
     return `<div class="emp" data-i="${i}">
@@ -798,7 +819,7 @@ function renderSummary() {
         <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}</div>
         <p class="ytd num">올해 총급여 ${won(e.yearPay)}</p>
       </div>
-      <div class="right"><span class="pay">${won(e.monthPay)}</span>${firmMode ? '' : '<span class="arrow">›</span>'}${e.payslip ? '<div><span class="slipbtn">명세서</span></div>' : ''}</div>
+      <div class="right"><span class="pay">${won(e.monthPay)}</span>${firmMode ? '' : '<span class="arrow">›</span>'}${e.payslip ? (inv[e.name + '@' + snap.targetMonth] ? '<div><span class="slipwait">명세서 준비 중</span></div>' : '<div><span class="slipbtn">명세서</span></div>') : ''}</div>
     </div>`;
   }).join('');
   $('emp-list').querySelectorAll('.emp').forEach(el =>
@@ -808,7 +829,22 @@ function renderSummary() {
       if (firmMode) return;
       enterInput(emp);
     });
+  renderSentLog();
   renderHome();
+}
+function renderSentLog() {
+  const log = loadJS(SENT_KEY, []);
+  const el = $('sent-log');
+  if (!log.length) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden');
+  el.textContent = log.slice(0, 3).map(s => {
+    const d = new Date(s.t);
+    const when = `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    const what = s.names && s.names.length
+      ? `${(s.mms || []).map(x => Number(x.slice(5)) + '월').join('·')}분 ${s.names[0]}${s.names.length > 1 ? ` 외 ${s.names.length - 1}명` : ''}`
+      : '특이사항 메모';
+    return `${when} — ${what} 전달됨`;
+  }).join('\n');
 }
 
 // ---- 직원 추가 (사원정보 입력) ----
@@ -826,41 +862,76 @@ function renderPending() {
     el.onclick = () => enterInput(pendingEmps[Number(el.dataset.i)]));
 }
 $('btn-submit-all').onclick = async () => {
-  const mm = dailyMonth();
   const m = $('sum-msg');
+  const note = $('batch-note').value.trim();
+  if (/\d{6,}/.test(note)) { m.className = 'msg err'; m.textContent = '특이사항 메모에 주민번호로 보이는 숫자가 있어 전달할 수 없습니다.'; return; }
   const entries = [];
   let badMemo = null;
+  // 자유 제출: 입력(열어본)한 모든 달의 내용을 한 번에 전달 — 몇 번이든 다시 보낼 수 있음
   snap.employees.concat(pendingEmps).forEach(e => {
-    const d = draftFor(e, mm);
-    let type = d.type;
-    if (type === 'monthly' && !d.mpay && Object.keys(d.days).length > 0) type = 'hourly';
-    if (/\d{6,}/.test(d.memo || '')) { badMemo = e.name; return; }
-    if (type === 'hourly') {
-      const w = calcHours(d.days, mm, 0);
-      if (!w.hours) return;   // 입력 없는 시급제 직원은 건너뜀
-      entries.push({ employeeName: e.name, payType: 'hourly', newEmployee: !!e.pending,
-        hourlyWage: d.wage || MIN_WAGE, inputMode: 'calendar',
-        days: Object.fromEntries(Object.entries(d.days).map(([dd, hv]) => [`${mm}-${String(dd).padStart(2, '0')}`, hv])),
-        hours: w.hours, restHours: w.rest, totalHours: w.total, workDays: w.workDays,
-        allowances: d.allowances, memo: d.memo, hireDate: d.hire || null, leaveDate: d.leave || null });
-    } else {
-      if (!d.mpay) return;    // 월급 미입력 월급제는 기존 금액 유지(미제출)
-      entries.push({ employeeName: e.name, payType: 'monthly', newEmployee: !!e.pending,
-        monthlyPay: d.mpay,
-        absentDays: (d.absent || []).slice().sort((a, b) => a - b).map(dd => `${mm}-${String(dd).padStart(2, '0')}`),
-        allowances: d.allowances, memo: d.memo,
-        hireDate: d.hire || null, leaveDate: d.leave || null });
+    for (let mi = 1; mi <= 12; mi++) {
+      const mm = `${selYear}-${String(mi).padStart(2, '0')}`;
+      if (!drafts[e.name + '@' + mm]) continue;
+      const d = draftFor(e, mm);
+      let type = d.type;
+      if (type === 'monthly' && !d.mpay && Object.keys(d.days).length > 0) type = 'hourly';
+      if (/\d{6,}/.test(d.memo || '')) { badMemo = e.name; continue; }
+      if (type === 'hourly') {
+        const w = calcHours(d.days, mm, 0);
+        if (!w.hours) continue;
+        entries.push({ targetMonth: mm, employeeName: e.name, payType: 'hourly', newEmployee: !!e.pending,
+          hourlyWage: d.wage || MIN_WAGE, inputMode: 'calendar',
+          days: Object.fromEntries(Object.entries(d.days).map(([dd, hv]) => [`${mm}-${String(dd).padStart(2, '0')}`, hv])),
+          hours: w.hours, restHours: w.rest, totalHours: w.total, workDays: w.workDays,
+          allowances: d.allowances, memo: d.memo, hireDate: d.hire || null, leaveDate: d.leave || null });
+      } else {
+        if (!d.mpay) continue;
+        entries.push({ targetMonth: mm, employeeName: e.name, payType: 'monthly', newEmployee: !!e.pending,
+          monthlyPay: d.mpay,
+          absentDays: (d.absent || []).slice().sort((a, b) => a - b).map(dd => `${mm}-${String(dd).padStart(2, '0')}`),
+          allowances: d.allowances, memo: d.memo,
+          hireDate: d.hire || null, leaveDate: d.leave || null });
+      }
     }
   });
-  if (badMemo) { m.className = 'msg err'; m.textContent = `${badMemo} 님의 메모에 주민번호로 보이는 숫자가 있어 제출할 수 없습니다.`; return; }
-  if (!entries.length) { m.className = 'msg err'; m.textContent = '제출할 입력 내용이 없습니다. 근무시간이나 월급을 먼저 입력해 주세요.'; return; }
-  if (DEMO) { m.className = 'msg info'; m.textContent = `데모 모드 — 직원 ${entries.length}명분이 준비되었지만 실제 전송은 되지 않습니다.`; return; }
+  if (badMemo) { m.className = 'msg err'; m.textContent = `${badMemo} 님의 메모에 주민번호로 보이는 숫자가 있어 전달할 수 없습니다.`; return; }
+  if (!entries.length && !note) { m.className = 'msg err'; m.textContent = '전달할 내용이 없습니다. 직원을 눌러 근무시간이나 월급을 먼저 입력해 주세요.'; return; }
+  // 전달 성공 처리: 보낸 기록 + 명세서 무효화(발행월 급여를 변경한 직원)
+  const doneMsg = () => {
+    const now = new Date().toISOString();
+    const names = [...new Set(entries.map(en => en.employeeName))];
+    const mms = [...new Set(entries.map(en => en.targetMonth))].sort();
+    const log = loadJS(SENT_KEY, []);
+    log.unshift({ t: now, mms, names });
+    saveJS(SENT_KEY, log.slice(0, 5));
+    const inv = loadJS(INV_KEY, {});
+    let hid = 0;
+    entries.forEach(en => {
+      if (en.targetMonth !== snap.targetMonth) return;
+      const se = snap.employees.find(x => x.name === en.employeeName);
+      if (!se || !se.payslip) return;
+      const changed = en.payType === 'hourly' ? true
+        : (en.monthlyPay !== (se.baseMonthPay || se.monthPay) || en.absentDays.length > 0
+           || (en.allowances || []).length > 0 || (en.leaveDate || '') !== (se.leaveDate || ''));
+      if (changed && !inv[en.employeeName + '@' + en.targetMonth]) { inv[en.employeeName + '@' + en.targetMonth] = now; hid++; }
+    });
+    saveJS(INV_KEY, inv);
+    renderSummary();
+    const mmTxt = mms.map(x => Number(x.slice(5)) + '월').join('·');
+    return (entries.length ? `${mmTxt}분 직원 ${names.length}명의 인건비가 전달되었습니다.` : '특이사항 메모가 전달되었습니다.')
+      + (hid ? ' 급여가 변경된 직원의 명세서는 담당자가 다시 확인하면 새로 생성됩니다.' : '');
+  };
+  if (DEMO) {
+    m.className = 'msg info';
+    m.textContent = '데모 모드 — 실제 전송은 되지 않습니다. ' + doneMsg();
+    return;
+  }
   try {
     const r = await fetch('/api/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, pin, targetMonth: mm, batch: true, entries }) });
+      body: JSON.stringify({ token, pin, targetMonth: dailyMonth(), batch: true, note, entries }) });
     const j = await r.json();
-    m.className = r.ok ? 'msg info' : 'msg err';
-    m.textContent = r.ok ? `직원 ${entries.length}명의 ${Number(mm.slice(5))}월 인건비가 제출되었습니다.` : (j.error || '오류가 발생했습니다.');
+    if (r.ok) { m.className = 'msg info'; m.textContent = doneMsg(); }
+    else { m.className = 'msg err'; m.textContent = j.error || '오류가 발생했습니다.'; }
   } catch (e) { m.className = 'msg err'; m.textContent = '연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'; }
 };
 $('btn-add-emp').onclick = () => { $('btn-add-emp').classList.add('hidden'); $('add-form').classList.remove('hidden'); };
