@@ -196,6 +196,8 @@
   .slipwait { display: inline-block; margin-top: 7px; font-size: 12px; font-weight: 700;
               color: #8a6d1f; background: rgba(250, 199, 117, .35);
               padding: 4px 11px; border-radius: 999px; }
+  #btn-leave-tog.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
+  #in-leave-day:disabled { opacity: .45; }
 
   .sumline { display: flex; justify-content: space-between; font-size: 13.5px; padding: 4px 0; }
   .sumline b, .sumline span:last-child { font-variant-numeric: tabular-nums; }
@@ -485,23 +487,21 @@
         <div id="msel"></div>
       </div>
       <div class="card" style="padding:14px 16px;">
-        <button id="btn-info" class="plain" style="width:100%; font-size:14.5px;">✎ 퇴사일 입력 (퇴사한 경우)</button>
-        <div id="sec-info" class="hidden">
-          <div class="hidden">
-            <div class="dgroup">
-              <input id="in-hire-y" inputmode="numeric" maxlength="4">
-              <input id="in-hire-m" inputmode="numeric" maxlength="2">
-              <input id="in-hire-d" inputmode="numeric" maxlength="2">
-            </div>
-          </div>
-          <label style="font-weight:400;">이번 달 며칠에 퇴사했나요? (일자만 입력)</label>
+        <div class="hidden">
           <div class="dgroup">
-            <input id="in-leave-day" inputmode="numeric" maxlength="2" placeholder="일 (예: 15)">
-            <button id="in-leave-clear" class="plain" style="flex:none; padding:0 16px; color:var(--red); font-weight:700; white-space:nowrap;">삭제</button>
+            <input id="in-hire-y" inputmode="numeric" maxlength="4">
+            <input id="in-hire-m" inputmode="numeric" maxlength="2">
+            <input id="in-hire-d" inputmode="numeric" maxlength="2">
           </div>
-          <p class="muted hidden" id="in-leave-note" style="margin-top:7px;"></p>
-          <p class="muted" style="margin-top:7px;">퇴사일을 넣으면 월급제는 자동 일할계산되고, 그 다음 날부터의 시급 근무 입력이 열립니다.</p>
         </div>
+        <div class="row" style="align-items:stretch;">
+          <button id="btn-leave-tog" class="plain" style="flex:1; font-size:14.5px; white-space:nowrap;">퇴사한 경우</button>
+          <input id="in-leave-day" inputmode="numeric" maxlength="2" placeholder="—" disabled
+                 style="flex:1; margin-top:0; text-align:center;">
+        </div>
+        <p class="muted hidden" id="in-leave-note" style="margin-top:7px;"></p>
+        <p class="muted" style="margin-top:7px;">퇴사한 달에만 왼쪽 버튼을 켜고 퇴사일(마지막 근무일)의 일자를 넣으세요.
+           버튼을 다시 끄면 퇴사하지 않은 것으로 계산합니다. 월급제는 자동 일할계산되고, 다음 날부터의 시급 근무 입력이 열립니다.</p>
       </div>
       <div class="card">
 
@@ -635,7 +635,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v35 (2026-07-12)';
+const APP_VER = 'v36 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -969,7 +969,14 @@ let currentEmp = null;
 const DRAFT_KEY = 'solthim_drafts';
 let drafts = {};
 try { drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}') || {}; } catch (e) { drafts = {}; }
-function persistDrafts() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts)); } catch (e) {} }
+function persistDrafts() {
+  try {
+    // 같은 기기의 다른 탭이 저장한 직원·월 초안을 지우지 않도록 병합 후 저장 (같은 키는 이 탭 우선)
+    const stored = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}') || {};
+    Object.keys(stored).forEach(k => { if (!drafts[k]) drafts[k] = stored[k]; });
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
+  } catch (e) {}
+}
 function draftFor(emp, mm = curMonth()) {
   const key = emp.name + '@' + mm;
   if (!drafts[key]) {
@@ -995,6 +1002,13 @@ function saveDraft() {
   d.hire = getDate('in-hire');   // 퇴사일(d.leave)은 일자 입력 핸들러가 직접 관리
   persistDrafts();
 }
+function setLeaveTog(on) {
+  $('btn-leave-tog').classList.toggle('on', on);
+  const el = $('in-leave-day');
+  el.disabled = !on;
+  el.placeholder = on ? '마지막 근무일 (일)' : '—';
+  if (!on) el.value = '';
+}
 function loadDraftIntoUI() {
   const emp = currentEmp;
   const d = draftFor(emp);
@@ -1008,13 +1022,12 @@ function loadDraftIntoUI() {
   $('memo').value = d.memo;
   setDate('in-hire', d.hire);
   const lv = d.leave || '';
-  $('in-leave-day').value = lv.startsWith(curMonth()) ? String(Number(lv.slice(8, 10))) : '';
-  const otherMonth = lv && !lv.startsWith(curMonth());
+  const leaveThisMonth = lv.startsWith(curMonth());
+  setLeaveTog(leaveThisMonth);
+  if (leaveThisMonth) $('in-leave-day').value = String(Number(lv.slice(8, 10)));
+  const otherMonth = lv && !leaveThisMonth;
   $('in-leave-note').classList.toggle('hidden', !otherMonth);
-  if (otherMonth) $('in-leave-note').textContent = `등록된 퇴사일: ${lv} — 다른 달입니다. 고치려면 그 달로 이동하거나 [삭제]를 누르세요.`;
-  const infoOpen = (d.leave && d.leave.startsWith(curMonth()));
-  $('sec-info').classList.toggle('hidden', !infoOpen);
-  $('btn-info').textContent = infoOpen ? '퇴사일 접기' : '✎ 퇴사일 입력 (퇴사한 경우)';
+  if (otherMonth) $('in-leave-note').textContent = `등록된 퇴사일: ${lv} — 다른 달입니다. 고치려면 그 달로 이동하세요. (버튼을 켰다 끄면 퇴사 취소)`;
   $('in-emp').textContent = emp.name;
   $('in-title').textContent = `${selYear}년 ${selMonth}월 근무 입력${emp.pending ? ' · 등록 대기' : ''}`;
   mbtns.forEach((b, i) => b.classList.toggle('on', i + 1 === selMonth));
@@ -1534,9 +1547,20 @@ function buildCal() {
   $('mode-total').onclick = () => { inputMode = 'total'; updateForm(); };
   $('pt-monthly').onclick = () => { payMode = 'monthly'; updateForm(); };
   $('pt-hourly').onclick = () => { payMode = 'hourly'; updateForm(); };
-  $('btn-info').onclick = () => {
-    const nowHidden = $('sec-info').classList.toggle('hidden');
-    $('btn-info').textContent = nowHidden ? '✎ 퇴사일 입력 (퇴사한 경우)' : '퇴사일 접기';
+  $('btn-leave-tog').onclick = () => {
+    const on = !$('btn-leave-tog').classList.contains('on');
+    setLeaveTog(on);
+    if (on) {
+      $('in-leave-day').focus();
+    } else if (currentEmp) {
+      const d = draftFor(currentEmp);
+      const had = !!d.leave;
+      d.leave = '';
+      persistDrafts();
+      $('in-leave-note').classList.add('hidden');
+      updateForm();
+      if (had) showMsg('info', '퇴사가 취소되었습니다. 퇴사하지 않은 것으로 계산합니다.');
+    }
   };
   ['tot-hrs', 'tot-days'].forEach(id => $(id).addEventListener('input', renderInputSummary));
   bindDateGroup('in-hire');
@@ -1560,13 +1584,6 @@ function buildCal() {
     persistDrafts();
     updateForm();
   });
-  $('in-leave-clear').onclick = () => {
-    $('in-leave-day').value = '';
-    if (currentEmp) { draftFor(currentEmp).leave = ''; persistDrafts(); }
-    $('in-leave-note').classList.add('hidden');
-    updateForm();
-    showMsg('info', '퇴사일이 삭제되었습니다.');
-  };
   commaBind($('wage')); commaBind($('aamt')); commaBind($('mpay'));
 
   // 월 선택판 (1~12월)
