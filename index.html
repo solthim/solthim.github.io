@@ -135,8 +135,8 @@
   .mtab th { color: var(--mute); font-weight: 600; }
   .mtab .cn { text-align: left; width: 82px; }
   .mtab .cs { width: 72px; font-weight: 700; color: var(--ink); }
-  .mtab .s1 { position: sticky; left: 0; z-index: 2; background: rgba(236, 242, 253, .97); }
-  .mtab .s2 { position: sticky; left: 82px; z-index: 2; background: rgba(236, 242, 253, .97);
+  .mtab .s1 { position: sticky; left: 0; z-index: 2; background: rgb(236, 242, 253); }
+  .mtab .s2 { position: sticky; left: 81px; z-index: 3; background: rgb(236, 242, 253);
               box-shadow: 4px 0 6px -3px rgba(76, 106, 180, .25); }
   .mtab .ghead td { font-weight: 800; color: var(--ink); text-align: left; padding-top: 12px; }
   .mtab .tot-row td { font-weight: 800; border-bottom: 0; }
@@ -376,11 +376,11 @@
       </div>
       <div class="card">
         <p class="grp c-sale" style="margin-top:0;">매출 <span class="muted" style="font-weight:500;">단위: 만원 · 옆으로 밀면 월별</span></p>
-        <div class="mwrap"><table class="mtab" id="sales-tab"></table></div>
+        <div class="mwrap" id="sales-wrap"><table class="mtab" id="sales-tab"></table></div>
       </div>
       <div class="card">
         <p class="grp c-pur" style="margin-top:0;">매입 <span class="muted" style="font-weight:500;">단위: 만원 · 옆으로 밀면 월별</span></p>
-        <div class="mwrap"><table class="mtab" id="pur-tab"></table></div>
+        <div class="mwrap" id="pur-wrap"><table class="mtab" id="pur-tab"></table></div>
       </div>
       <p class="muted" style="margin:0 6px;">금액은 부가세가 포함된 공급대가 기준입니다.</p>
     </div>
@@ -974,6 +974,18 @@ function buildMatrix(el, byMonth, groups, totalLabel, totalClass) {
     + `<tr class="tot-row"><td class="cn s1">${totalLabel}</td><td class="cs s2 ${totalClass}">${fmtMan(grand)}</td>`
     + monthTot.map(v => `<td class="${totalClass}">${fmtMan(v)}</td>`).join('') + '</tr></tbody>';
 }
+// 매출·매입 표 가로 스크롤 동기화
+(() => {
+  const wraps = [$('sales-wrap'), $('pur-wrap')];
+  let syncing = false;
+  wraps.forEach(w => w.addEventListener('scroll', () => {
+    if (syncing) return;
+    syncing = true;
+    wraps.forEach(o => { if (o !== w) o.scrollLeft = w.scrollLeft; });
+    syncing = false;
+  }));
+})();
+
 function renderSales() {
   $('sales-asof').textContent = `자료 기준일 ${snap.sales.asOf} · 공급대가 기준`;
   buildMatrix($('sales-tab'), snap.sales.byMonth, [
