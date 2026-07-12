@@ -1,5 +1,5 @@
 // 솔팀 서비스 워커 — 최소 기능: 정적 파일만 캐시, 급여 데이터(/api/)는 절대 저장하지 않음
-const CACHE = 'solthim-v8';
+const CACHE = 'solthim-v9';
 const ASSETS = ['manifest.json', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', e => {
