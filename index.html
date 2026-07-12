@@ -119,6 +119,12 @@
   .hc-blue .hl { color: var(--blue-deep); }
   .hc-orange .hl { color: #d06a2e; }
   .hc-green .hl { color: #1e8c4d; }
+  /* 한국식 색 관습: 매출(수입)=빨강, 매입(지출)=파랑 */
+  .c-sale { color: #d43a35 !important; }
+  .c-pur  { color: #2f6fd8 !important; }
+  .chart { display: flex; align-items: flex-end; gap: 10px; }
+  .lgd { display: flex; gap: 14px; font-size: 12px; color: #5d6b8c; margin: 6px 0 12px; }
+  .lgd i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 4px; }
   .grow { flex: 1; min-width: 0; }
   .backrow { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
   .backrow .bk { width: 46px; padding: 0; border-radius: 50%; font-size: 18px; flex: none; }
@@ -246,12 +252,12 @@
         <p class="hl">매출 · 매입 거래 <small>올해 누계 · 만원</small></p>
         <div style="display:flex; gap:14px; margin-top:8px;">
           <div style="flex:1;">
-            <p class="hl" style="opacity:.8;">매출</p>
-            <p class="hn2" id="hs-sales"></p>
+            <p class="hl c-sale">매출</p>
+            <p class="hn2 c-sale" id="hs-sales"></p>
           </div>
           <div style="flex:1;">
-            <p class="hl" style="opacity:.8;">매입</p>
-            <p class="hn2" id="hs-pur"></p>
+            <p class="hl c-pur">매입</p>
+            <p class="hn2 c-pur" id="hs-pur"></p>
           </div>
         </div>
         <p class="hs2" id="hs-sales-sub"></p>
@@ -335,6 +341,13 @@
           <div class="msg" id="add-msg"></div>
         </div>
       </div>
+      <div class="card hidden" id="labor-card">
+        <p class="grp" style="margin-top:0;">월별 인건비</p>
+        <div class="lgd">
+          <span><i style="background:#f2703d;"></i>인건비</span>
+        </div>
+        <div id="labor-chart" class="chart"></div>
+      </div>
     </div>
 
     <!-- 매출/매입 거래 -->
@@ -350,8 +363,16 @@
         <label style="margin:0 0 6px;">조회할 달</label>
         <div id="sales-mm" style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;"></div>
       </div>
-      <div class="card"><p class="grp" style="margin-top:0;">매출</p><div id="sales-list"></div></div>
-      <div class="card"><p class="grp" style="margin-top:0;">매입</p><div id="pur-list"></div></div>
+      <div class="card"><p class="grp c-sale" style="margin-top:0;">매출</p><div id="sales-list"></div></div>
+      <div class="card"><p class="grp c-pur" style="margin-top:0;">매입</p><div id="pur-list"></div></div>
+      <div class="card">
+        <p class="grp" style="margin-top:0;">월별 매출 · 매입</p>
+        <div class="lgd">
+          <span><i style="background:#d43a35;"></i>매출</span>
+          <span><i style="background:#2f6fd8;"></i>매입</span>
+        </div>
+        <div id="sales-chart" class="chart"></div>
+      </div>
       <p class="muted" style="margin:0 6px;">금액은 부가세가 포함된 공급대가 기준입니다.</p>
     </div>
 
@@ -366,12 +387,12 @@
       </div>
       <div class="card">
         <p class="grp" style="margin-top:0;">월별 추이</p>
-        <div style="display:flex; gap:14px; font-size:12px; color:#5c665e; margin:6px 0 12px;">
-          <span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#3b82f6; margin-right:4px;"></span>매출</span>
-          <span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#f2703d; margin-right:4px;"></span>매입</span>
-          <span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#1e9e50; margin-right:4px;"></span>인건비</span>
+        <div class="lgd">
+          <span><i style="background:#d43a35;"></i>매출</span>
+          <span><i style="background:#2f6fd8;"></i>매입</span>
+          <span><i style="background:#f2703d;"></i>인건비</span>
         </div>
-        <div id="pnl-chart" style="display:flex; align-items:flex-end; gap:10px;"></div>
+        <div id="pnl-chart" class="chart"></div>
       </div>
       <div class="card">
         <p class="muted" style="margin-bottom:8px;">단위: 만원 · 부가세 포함</p>
@@ -709,6 +730,14 @@ function renderSummary() {
   }).join('');
   $('emp-list').querySelectorAll('.emp').forEach(el =>
     el.onclick = () => enterInput(snap.employees[Number(el.dataset.i)]));
+  // 월별 인건비 막대그래프
+  if (snap.pnl) {
+    $('labor-card').classList.remove('hidden');
+    const ms = Object.keys(snap.pnl.byMonth).sort();
+    drawChart($('labor-chart'), ms, [{ color: C_LABOR, get: mm => snap.pnl.byMonth[mm].labor }]);
+  } else {
+    $('labor-card').classList.add('hidden');
+  }
   renderHome();
 }
 
@@ -877,6 +906,20 @@ function renderHome() {
   }
 }
 
+// ---- 공용 월별 막대그래프 ----
+const C_SALE = '#d43a35', C_PUR = '#2f6fd8', C_LABOR = '#f2703d';
+function drawChart(el, months, series) {
+  const maxV = Math.max(1, ...months.flatMap(mm => series.map(s => s.get(mm))));
+  const barH = v => Math.max(3, Math.round(v / maxV * 110));
+  el.innerHTML = months.map(mm => `
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px;">
+      <div style="display:flex; align-items:flex-end; gap:3px; height:112px;">
+        ${series.map(s => `<div style="width:10px; height:${barH(s.get(mm))}px; background:${s.color}; border-radius:4px 4px 0 0;"></div>`).join('')}
+      </div>
+      <span style="font-size:11px; color:var(--mute); font-weight:600;">${Number(mm.slice(5))}월</span>
+    </div>`).join('');
+}
+
 // ---- 매출/매입 거래 ----
 const sumOf = arr => arr.reduce((a, b) => a + b.total, 0);
 const lines = items => items.map(it =>
@@ -899,6 +942,10 @@ function renderSales() {
   });
   box.lastChild.classList.add('on');
   renderSalesMonth(months[months.length - 1]);
+  drawChart($('sales-chart'), months, [
+    { color: C_SALE, get: mm => { const s = snap.sales.byMonth[mm]; return sumOf(s.taxInvoice) + sumOf(s.invoice) + s.card + s.cash + sumOf(s.agency); } },
+    { color: C_PUR, get: mm => { const p = snap.purchases.byMonth[mm]; return sumOf(p.taxInvoice) + sumOf(p.invoice) + sumOf(p.card); } }
+  ]);
 }
 function renderSalesMonth(mm) {
   const s = snap.sales.byMonth[mm], p = snap.purchases.byMonth[mm];
@@ -909,14 +956,14 @@ function renderSalesMonth(mm) {
   sh += `<p class="grp">현금영수증</p><div class="ln"><span>합계</span><span>${won(s.cash)}</span></div>`;
   if (s.agency.length) sh += '<p class="grp">판매대행 (대행사별)</p>' + lines(s.agency);
   const sTot = sumOf(s.taxInvoice) + sumOf(s.invoice) + s.card + s.cash + sumOf(s.agency);
-  sh += `<div class="ln tot"><span>매출 합계</span><span>${won(sTot)}</span></div>`;
+  sh += `<div class="ln tot"><span>매출 합계</span><span class="c-sale">${won(sTot)}</span></div>`;
   $('sales-list').innerHTML = sh;
   let ph = '';
   if (p.taxInvoice.length) ph += '<p class="grp">세금계산서 (거래처별)</p>' + lines(p.taxInvoice);
   if (p.invoice.length) ph += '<p class="grp">계산서 (거래처별)</p>' + lines(p.invoice);
   if (p.card.length) ph += '<p class="grp">신용카드 (카드사별)</p>' + lines(p.card);
   const pTot = sumOf(p.taxInvoice) + sumOf(p.invoice) + sumOf(p.card);
-  ph += `<div class="ln tot"><span>매입 합계</span><span>${won(pTot)}</span></div>`;
+  ph += `<div class="ln tot"><span>매입 합계</span><span class="c-pur">${won(pTot)}</span></div>`;
   $('pur-list').innerHTML = ph;
 }
 
@@ -925,23 +972,12 @@ function renderPnl() {
   $('pnl-asof').textContent = `자료 기준일 ${snap.sales ? snap.sales.asOf : '-'}`;
   const months = Object.keys(snap.pnl.byMonth).sort();
   const manw = n => Math.round(n / 10000).toLocaleString('ko-KR');
-  // 월별 매출·매입·인건비 막대그래프
-  const maxV = Math.max(...months.flatMap(mm => {
-    const r = snap.pnl.byMonth[mm];
-    return [r.sales, r.purchases, r.labor];
-  }));
-  const barH = v => Math.max(3, Math.round(v / maxV * 110));
-  $('pnl-chart').innerHTML = months.map(mm => {
-    const r = snap.pnl.byMonth[mm];
-    return `<div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:5px;">
-      <div style="display:flex; align-items:flex-end; gap:3px; height:112px;">
-        <div style="width:10px; height:${barH(r.sales)}px; background:#3b82f6; border-radius:4px 4px 0 0;"></div>
-        <div style="width:10px; height:${barH(r.purchases)}px; background:#f2703d; border-radius:4px 4px 0 0;"></div>
-        <div style="width:10px; height:${barH(r.labor)}px; background:#1e9e50; border-radius:4px 4px 0 0;"></div>
-      </div>
-      <span style="font-size:11px; color:var(--mute); font-weight:600;">${Number(mm.slice(5))}월</span>
-    </div>`;
-  }).join('');
+  // 월별 매출·매입·인건비 막대그래프 (매출=빨강, 매입=파랑)
+  drawChart($('pnl-chart'), months, [
+    { color: C_SALE, get: mm => snap.pnl.byMonth[mm].sales },
+    { color: C_PUR, get: mm => snap.pnl.byMonth[mm].purchases },
+    { color: C_LABOR, get: mm => snap.pnl.byMonth[mm].labor }
+  ]);
   let tS = 0, tP = 0, tL = 0, tPr = 0;
   $('pnl-rows').innerHTML = months.map(mm => {
     const r = snap.pnl.byMonth[mm];
