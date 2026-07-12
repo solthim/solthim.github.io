@@ -347,6 +347,8 @@
           <div class="msg" id="add-msg"></div>
         </div>
       </div>
+      <button class="primary" id="btn-submit-all" style="width:100%; margin-bottom:10px;"></button>
+      <div class="msg" id="sum-msg"></div>
     </div>
 
     <!-- 매출/매입 거래 -->
@@ -589,7 +591,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v26 (2026-07-12)';
+const APP_VER = 'v27 (2026-07-12)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -730,6 +732,7 @@ function renderSummary() {
   }
   $('t-month').textContent = won(snap.totals.monthPay);
   $('t-sub').textContent = `올해 누계 ${won(snap.totals.yearPay)}`;
+  $('btn-submit-all').textContent = `${now.getMonth() + 1}월 인건비 전체 제출`;
   const emps = [...snap.employees].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
   $('emp-list').innerHTML = emps.map((e, i) => {
     return `<div class="emp" data-i="${i}">
@@ -760,6 +763,42 @@ function renderPending() {
   $('pend-list').querySelectorAll('.emp').forEach(el =>
     el.onclick = () => enterInput(pendingEmps[Number(el.dataset.i)]));
 }
+$('btn-submit-all').onclick = async () => {
+  const mm = dailyMonth();
+  const m = $('sum-msg');
+  const entries = [];
+  let badMemo = null;
+  snap.employees.concat(pendingEmps).forEach(e => {
+    const d = draftFor(e, mm);
+    let type = d.type;
+    if (type === 'monthly' && !d.mpay && Object.keys(d.days).length > 0) type = 'hourly';
+    if (/\d{6,}/.test(d.memo || '')) { badMemo = e.name; return; }
+    if (type === 'hourly') {
+      const w = calcHours(d.days, mm, 0);
+      if (!w.hours) return;   // 입력 없는 시급제 직원은 건너뜀
+      entries.push({ employeeName: e.name, payType: 'hourly', newEmployee: !!e.pending,
+        hourlyWage: d.wage || MIN_WAGE, inputMode: 'calendar',
+        days: Object.fromEntries(Object.entries(d.days).map(([dd, hv]) => [`${mm}-${String(dd).padStart(2, '0')}`, hv])),
+        hours: w.hours, restHours: w.rest, totalHours: w.total, workDays: w.workDays,
+        allowances: d.allowances, memo: d.memo, hireDate: d.hire || null, leaveDate: d.leave || null });
+    } else {
+      if (!d.mpay) return;    // 월급 미입력 월급제는 기존 금액 유지(미제출)
+      entries.push({ employeeName: e.name, payType: 'monthly', newEmployee: !!e.pending,
+        monthlyPay: d.mpay, allowances: d.allowances, memo: d.memo,
+        hireDate: d.hire || null, leaveDate: d.leave || null });
+    }
+  });
+  if (badMemo) { m.className = 'msg err'; m.textContent = `${badMemo} 님의 메모에 주민번호로 보이는 숫자가 있어 제출할 수 없습니다.`; return; }
+  if (!entries.length) { m.className = 'msg err'; m.textContent = '제출할 입력 내용이 없습니다. 근무시간이나 월급을 먼저 입력해 주세요.'; return; }
+  if (DEMO) { m.className = 'msg info'; m.textContent = `데모 모드 — 직원 ${entries.length}명분이 준비되었지만 실제 전송은 되지 않습니다.`; return; }
+  try {
+    const r = await fetch('/api/submit', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, pin, targetMonth: mm, batch: true, entries }) });
+    const j = await r.json();
+    m.className = r.ok ? 'msg info' : 'msg err';
+    m.textContent = r.ok ? `직원 ${entries.length}명의 ${Number(mm.slice(5))}월 인건비가 제출되었습니다.` : (j.error || '오류가 발생했습니다.');
+  } catch (e) { m.className = 'msg err'; m.textContent = '연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'; }
+};
 $('btn-add-emp').onclick = () => { $('btn-add-emp').classList.add('hidden'); $('add-form').classList.remove('hidden'); };
 $('btn-add-cancel').onclick = () => { $('add-form').classList.add('hidden'); $('btn-add-emp').classList.remove('hidden'); };
 $('add-hourly').onclick = () => { addType = 'hourly'; renderAddType(); };
@@ -821,6 +860,8 @@ function loadDraftIntoUI() {
   const emp = currentEmp;
   const d = draftFor(emp);
   days = d.days; allowances = d.allowances; inputMode = d.mode;
+  // 근무시간이 입력돼 있는데 월급제(월급액 없음)면 자동으로 시급제 처리
+  if (d.type === 'monthly' && !d.mpay && Object.keys(d.days).length > 0) d.type = 'hourly';
   payMode = d.type; restOpt = d.restOpt || 'no';
   selDays.clear();
   $('wage').value = d.wage ? d.wage.toLocaleString('ko-KR') : '';
@@ -932,6 +973,7 @@ function renderDailyList() {
     b.onclick = () => {
       const i = Number(b.dataset.di), hv = Number(b.dataset.hv);
       const d = draftFor(emps[i], mm);
+      d.type = 'hourly';   // 일자별 입력 = 시급제 확정
       if (d.days[dailyDay] === hv) delete d.days[dailyDay];   // 같은 값 다시 누르면 지움
       else d.days[dailyDay] = hv;
       persistDrafts();
@@ -1274,26 +1316,29 @@ function renderAllow() {
     el.onclick = () => { allowances.splice(Number(el.dataset.i), 1); renderAllow(); persistDrafts(); persistDrafts(); });
   renderInputSummary();
 }
-// 근무 집계 + 주휴수당 자동계산 (달력 입력 시): 일~토 주 단위로 15시간 이상이면
+// 달력 기록 집계 + 주휴수당 자동계산: 일~토 주 단위로 15시간 이상이면
 // 주휴시간 = min(주 근무시간, 40) ÷ 40 × 8 (0.5시간 단위 반올림). 참고용 — 확정은 담당자.
+function calcHours(daysObj, mm, capDay) {
+  const y = Number(mm.slice(0, 4)), mo = Number(mm.slice(5, 7));
+  const first = new Date(y, mo - 1, 1).getDay();
+  let hours = 0, workDays = 0;
+  const weeks = {};
+  Object.entries(daysObj || {}).forEach(([d, hv]) => {
+    if (Number(d) > (capDay || 0)) {
+      hours += hv; workDays += 1;
+      const w = Math.floor((first + Number(d) - 1) / 7);
+      weeks[w] = (weeks[w] || 0) + hv;
+    }
+  });
+  let rest = 0;
+  Object.values(weeks).forEach(wh => {
+    if (wh >= 15) rest += Math.round(Math.min(wh, 40) / 40 * 8 * 2) / 2;
+  });
+  return { hours, rest, total: hours + rest, workDays };
+}
 function workSummary() {
   if (inputMode === 'calendar') {
-    const sd = swDay();
-    const first = new Date(selYear, selMonth - 1, 1).getDay();
-    let hours = 0, workDays = 0;
-    const weeks = {};
-    Object.entries(days).forEach(([d, h]) => {
-      if (Number(d) > sd) {
-        hours += h; workDays += 1;
-        const w = Math.floor((first + Number(d) - 1) / 7);
-        weeks[w] = (weeks[w] || 0) + h;
-      }
-    });
-    let rest = 0;
-    Object.values(weeks).forEach(wh => {
-      if (wh >= 15) rest += Math.round(Math.min(wh, 40) / 40 * 8 * 2) / 2;
-    });
-    return { hours, rest, total: hours + rest, workDays };
+    return calcHours(days, curMonth(), swDay());
   }
   const hours = Number($('tot-hrs').value) || 0;
   let rest = 0;
@@ -1359,6 +1404,10 @@ function renderInputSummary() {
 function showMsg(kind, text) { const m = $('in-msg'); m.className = 'msg ' + kind; m.textContent = text; }
 
 async function submit() {
+  if (payMode === 'monthly' && numOf($('mpay')) <= 0 && Object.keys(days).length > 0) {
+    payMode = 'hourly';   // 근무시간이 있으므로 시급제로 자동 전환해 제출
+    updateForm();
+  }
   const memo = $('memo').value.trim();
   const t = payMode;
   if (/\d{6,}/.test(memo)) return showMsg('err', '메모에 주민번호로 보이는 숫자는 저장할 수 없습니다. 담당자에게 직접 전달해 주세요.');
