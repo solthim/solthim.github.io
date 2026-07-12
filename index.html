@@ -428,10 +428,9 @@
       <div class="card">
         <p class="grp" style="margin-top:0;" id="daily-date-label"></p>
         <div id="daily-list"></div>
-        <button class="primary" id="btn-daily-save" style="width:100%; margin-top:10px;">저장</button>
         <div class="msg" id="daily-msg"></div>
-        <p class="muted" style="margin-top:10px;">저장한 시간은 각 직원의 근무 입력 달력에 그대로 기록됩니다.
-           월 마감 때 직원별 화면에서 확인하고 제출해 주세요.</p>
+        <p class="muted" style="margin-top:10px;">시간을 고르면 바로 저장됩니다. 같은 시간을 다시 누르면 지워져요.
+           저장분은 각 직원의 근무 입력 달력에 기록되며, 월 마감 때 직원별 화면에서 제출해 주세요.</p>
       </div>
     </div>
 
@@ -525,7 +524,7 @@
         <div class="row" style="margin-top:6px;">
           <input id="aname" maxlength="10" placeholder="항목명 (예: 식대)">
           <input id="aamt" inputmode="numeric" placeholder="금액" style="width:110px;">
-          <button id="btn-aadd" class="plain">추가</button>
+          <button id="btn-aadd" class="plain" style="flex:none; white-space:nowrap; padding:13px 20px;">추가</button>
         </div>
         <label>메모 (선택)</label>
         <input id="memo" maxlength="50" placeholder="직원 특이사항 적어주세요 (주민번호 제외)">
@@ -590,7 +589,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v20 (2026-07-12)';
+const APP_VER = 'v21 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
@@ -899,34 +898,53 @@ function renderDaily() {
     c.className = 'd' + (d === dailyDay ? ' sel' : '');
     if (hourlyEmps().some(e => draftFor(e, mm).days[d])) c.classList.add('filled');
     c.innerHTML = `<span class="num ${cls}">${d}</span><small></small>`;
-    c.onclick = () => { dailyDay = d; renderDaily(); };
+    c.onclick = () => { dailyDay = d; dailyOpen = null; renderDaily(); };
     cal.appendChild(c);
   }
   $('daily-date-label').textContent = `${mo + 1}월 ${dailyDay}일 근무시간`;
-  $('daily-list').innerHTML = hourlyEmps().map((e, i) => {
-    const v = draftFor(e, mm).days[dailyDay] || '';
-    return `<div class="row" style="margin-bottom:8px;">
-      <span style="flex:1; font-weight:700; color:var(--ink);">${e.name}</span>
-      <input type="number" min="0" max="24" step="0.5" data-di="${i}" value="${v}" placeholder="0" style="width:90px;">
-      <span class="muted">시간</span></div>`;
-  }).join('') || '<p class="muted">시급제 직원이 없습니다.</p>';
+  renderDailyList();
 }
-$('btn-daily').onclick = () => { dailyDay = null; $('daily-msg').className = 'msg'; renderDaily(); navTo('v-daily'); };
-$('btn-daily-save').onclick = () => {
+let dailyOpen = null;   // 시간 선택판이 열려 있는 직원
+function renderDailyList() {
   const mm = dailyMonth();
-  hourlyEmps().forEach((e, i) => {
-    const inp = $('daily-list').querySelector(`input[data-di="${i}"]`);
-    if (!inp) return;
-    const h = Math.min(24, Math.max(0, Number(inp.value) || 0));
-    const d = draftFor(e, mm);
-    if (h > 0) d.days[dailyDay] = h; else delete d.days[dailyDay];
+  const emps = hourlyEmps();
+  $('daily-list').innerHTML = emps.map((e, i) => {
+    const v = draftFor(e, mm).days[dailyDay] || 0;
+    let html = `<div class="row" style="margin-bottom:8px;">
+      <span style="flex:1; font-weight:700; color:var(--ink);">${e.name}</span>
+      <button class="${v ? 'primary' : 'plain'} dh" data-di="${i}" style="flex:none; min-width:110px; white-space:nowrap;">${v ? v + '시간' : '시간 선택'}</button>
+    </div>`;
+    if (dailyOpen === i) {
+      html += '<div style="display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; margin:0 0 12px;">'
+        + Array.from({ length: 20 }, (_, k) => (k + 1) * 0.5).map(hv =>
+          `<button class="mbtn${hv === v ? ' on' : ''}" data-hv="${hv}" data-di="${i}" style="min-height:38px; padding:6px 0;">${hv}</button>`).join('')
+        + '</div>';
+    }
+    return html;
+  }).join('') || '<p class="muted">시급제 직원이 없습니다.</p>';
+  $('daily-list').querySelectorAll('.dh').forEach(b => {
+    b.onclick = () => {
+      const i = Number(b.dataset.di);
+      dailyOpen = dailyOpen === i ? null : i;
+      renderDailyList();
+    };
   });
-  persistDrafts();
-  renderDaily();
-  const m = $('daily-msg');
-  m.className = 'msg info';
-  m.textContent = `${now.getMonth() + 1}월 ${dailyDay}일 근무시간이 저장되었습니다. 직원별 달력에 반영됐어요.`;
-};
+  $('daily-list').querySelectorAll('[data-hv]').forEach(b => {
+    b.onclick = () => {
+      const i = Number(b.dataset.di), hv = Number(b.dataset.hv);
+      const d = draftFor(emps[i], mm);
+      if (d.days[dailyDay] === hv) delete d.days[dailyDay];   // 같은 값 다시 누르면 지움
+      else d.days[dailyDay] = hv;
+      persistDrafts();
+      dailyOpen = null;
+      renderDaily();
+      const m = $('daily-msg');
+      m.className = 'msg info';
+      m.textContent = `${now.getMonth() + 1}월 ${dailyDay}일 저장되었습니다.`;
+    };
+  });
+}
+$('btn-daily').onclick = () => { dailyDay = null; dailyOpen = null; $('daily-msg').className = 'msg'; renderDaily(); navTo('v-daily'); };
 
 // ---- 홈 3단 요약 ----
 // 억 단위 끊어 읽기: 143,280,000 → "1억 4,328만원"
