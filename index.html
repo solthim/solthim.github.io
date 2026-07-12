@@ -713,6 +713,11 @@ async function api(extra) {
   birth = $('bday').value.trim() || birth;
   const msg = $('pin-msg'); msg.className = 'msg';
   if (DEMO) {
+    if (pin !== DEMO.pin || (DEMO.birth && birth !== DEMO.birth)) {
+      msg.className = 'msg err';
+      msg.textContent = '번호가 맞지 않습니다. 사업자번호 뒤 5자리와 생년월일 6자리를 확인해 주세요.';
+      return null;
+    }
     months = DEMO.months;
     snap = DEMO.snapshots[extra.month || months[months.length - 1]];
     renderSummary();
@@ -739,14 +744,18 @@ $('btn-auth').onclick = auth;
 $('pin').addEventListener('input', () => { if ($('pin').value.length === 5) $('bday').focus(); });
 $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('bday').focus(); });
 $('bday').addEventListener('keydown', e => { if (e.key === 'Enter') auth(); });
-// 데모는 바로 입장. 서버 모드는 이 기기에서 성공한 적 있으면 자동 로그인.
-if (DEMO) {
-  pin = DEMO.pin; birth = DEMO.birth || '';
-  auth();
-} else {
+// 이 기기에서 성공한 적 있으면 자동 로그인, 아니면 로그인 화면 (데모도 동일 체험)
+{
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) {}
   if (saved && saved.p) { pin = saved.p; birth = saved.b || ''; auth(); }
+  else if (DEMO) {
+    const tip = document.createElement('p');
+    tip.className = 'muted';
+    tip.style.cssText = 'margin-top:8px; font-size:12.5px; background:rgba(91,141,239,.12); border-radius:10px; padding:9px;';
+    tip.textContent = '데모 체험용 — 사업자번호 12345 / 생년월일 700101';
+    $('pin-msg').parentNode.appendChild(tip);
+  }
 }
 
 // ---- 인건비 요약 (홈) ----
