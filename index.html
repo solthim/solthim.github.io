@@ -197,18 +197,18 @@
                    padding-top: 10px; font-size: 16px; font-weight: 800; color: var(--blue-deep); }
 
   /* 달력 */
-  #cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 8px; }
-  #cal .h { font-size: 11px; font-weight: 600; color: var(--mute); text-align: center; padding: 3px 0; }
-  #cal .h.sun, #cal .num.sun { color: var(--red); }
-  #cal .h.sat, #cal .num.sat { color: var(--sat); }
-  #cal .d { border: 1px solid rgba(255, 255, 255, .6); border-radius: 12px; min-height: 48px;
+  .calgrid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 8px; }
+  .calgrid .h { font-size: 11px; font-weight: 600; color: var(--mute); text-align: center; padding: 3px 0; }
+  .calgrid .h.sun, .calgrid .num.sun { color: var(--red); }
+  .calgrid .h.sat, .calgrid .num.sat { color: var(--sat); }
+  .calgrid .d { border: 1px solid rgba(255, 255, 255, .6); border-radius: 12px; min-height: 48px;
             text-align: center; padding: 6px 0; cursor: pointer; user-select: none; font-size: 13px;
             background: rgba(255, 255, 255, .4); }
-  #cal .d.filled { background: rgba(91, 141, 239, .22); border-color: rgba(91, 141, 239, .4); }
-  #cal .d.sel { border-color: var(--blue); box-shadow: 0 0 0 1.5px var(--blue); }
-  #cal .d.dis { opacity: .35; cursor: default; }
-  #cal .d .num { display: block; font-weight: 600; color: var(--body-c); }
-  #cal .d small { display: block; font-size: 11px; min-height: 13px; color: var(--blue-deep); font-weight: 700; }
+  .calgrid .d.filled { background: rgba(91, 141, 239, .22); border-color: rgba(91, 141, 239, .4); }
+  .calgrid .d.sel { border-color: var(--blue); box-shadow: 0 0 0 1.5px var(--blue); }
+  .calgrid .d.dis { opacity: .35; cursor: default; }
+  .calgrid .d .num { display: block; font-weight: 600; color: var(--body-c); }
+  .calgrid .d small { display: block; font-size: 11px; min-height: 13px; color: var(--blue-deep); font-weight: 700; }
 
   .arow { display: flex; justify-content: space-between; align-items: center;
           background: rgba(255, 255, 255, .4); border: var(--glass-b);
@@ -320,6 +320,7 @@
         <p class="hs" id="t-sub"></p>
       </div>
 
+      <button id="btn-daily" class="primary" style="width:100%; margin-bottom:14px;">✎ 시급제 직원 일자별 근무시간 입력</button>
       <p class="muted" style="margin:0 6px 8px;">직원을 누르면 근무 입력으로 이동합니다.</p>
       <div class="card" id="emp-list"></div>
       <div class="card">
@@ -416,7 +417,31 @@
          금액은 부가세 포함(공급대가) 기준이라 세금 계산 결과와는 다를 수 있습니다.</p>
     </div>
 
+    <!-- 일자별 근무 입력 (시급제) -->
+    <div id="v-daily" class="hidden">
+      <div class="backrow">
+        <button class="bk" aria-label="인건비로 돌아가기">←</button>
+        <div>
+          <h1 style="font-size:20px;">일자별 근무 입력</h1>
+          <p class="muted num" id="daily-title-sub" style="margin-top:2px;"></p>
+        </div>
+      </div>
+      <div class="card">
+        <label style="margin-top:0;">날짜를 선택하세요 <span class="muted" style="font-weight:400;">(기록 있는 날은 파랗게 표시)</span></label>
+        <div id="dcal" class="calgrid"></div>
+      </div>
+      <div class="card">
+        <p class="grp" style="margin-top:0;" id="daily-date-label"></p>
+        <div id="daily-list"></div>
+        <button class="primary" id="btn-daily-save" style="width:100%; margin-top:10px;">저장</button>
+        <div class="msg" id="daily-msg"></div>
+        <p class="muted" style="margin-top:10px;">저장한 시간은 각 직원의 근무 입력 달력에 그대로 기록됩니다.
+           월 마감 때 직원별 화면에서 확인하고 제출해 주세요.</p>
+      </div>
+    </div>
+
     <!-- 근무 입력 (직원별 상세) -->
+
     <div id="v-in" class="hidden">
       <div class="row" style="margin-bottom:14px; gap:12px;">
         <button id="btn-back" aria-label="인건비 요약으로 돌아가기"
@@ -485,7 +510,7 @@
           </div>
           <div id="sec-cal" class="hidden">
             <label>근무한 날짜를 눌러 선택하세요 (여러 날 가능)</label>
-            <div id="cal"></div>
+            <div id="cal" class="calgrid"></div>
             <div class="row" style="margin-top:10px;">
               <input id="hrs" type="number" min="0" max="24" step="0.5" value="8" style="width:80px;">
               <span class="muted">시간</span>
@@ -576,7 +601,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v17 (2026-07-12)';
+const APP_VER = 'v18 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
@@ -795,9 +820,13 @@ $('btn-add-ok').onclick = () => {
 
 // ---- 화면 전환 (요약 ↔ 입력) ----
 let currentEmp = null;
-const drafts = {};   // 직원+월별로 입력 내용을 따로 기억
-function draftFor(emp) {
-  const key = emp.name + '@' + curMonth();
+// 직원+월별 임시저장 — 기기(localStorage)에 보존되어 앱을 껐다 켜도 유지됨 (제출 전 임시 기록)
+const DRAFT_KEY = 'solthim_drafts';
+let drafts = {};
+try { drafts = JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}') || {}; } catch (e) { drafts = {}; }
+function persistDrafts() { try { localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts)); } catch (e) {} }
+function draftFor(emp, mm = curMonth()) {
+  const key = emp.name + '@' + mm;
   if (!drafts[key]) {
     drafts[key] = {
       type: emp.payType, income: guessIncome(emp),
@@ -816,6 +845,7 @@ function saveDraft() {
   d.wage = numOf($('wage')); d.mpay = numOf($('mpay'));
   d.memo = $('memo').value; d.mode = inputMode;
   d.hire = getDate('in-hire'); d.leave = getDate('in-leave');
+  persistDrafts();
 }
 function loadDraftIntoUI() {
   const emp = currentEmp;
@@ -851,7 +881,7 @@ function switchMonth(m) {
 }
 
 // ---- 화면 이동 (홈 → 섹션 → 상세, 뒤로가기 지원) ----
-const VIEWS = ['v-home', 'v-sum', 'v-sales', 'v-pnl', 'v-in'];
+const VIEWS = ['v-home', 'v-sum', 'v-sales', 'v-pnl', 'v-daily', 'v-in'];
 let navStack = ['v-home'];
 function showView(id) {
   VIEWS.forEach(v => $(v).classList.toggle('hidden', v !== id));
@@ -874,6 +904,57 @@ document.querySelectorAll('.backrow .bk').forEach(b => { b.onclick = () => histo
 $('go-labor').onclick = () => navTo('v-sum');
 $('go-sales').onclick = () => { if (!snap.sales) return; renderSales(); navTo('v-sales'); };
 $('go-pnl').onclick = () => { if (!snap.pnl) return; renderPnl(); navTo('v-pnl'); };
+// ---- 일자별 근무 입력 (시급제) ----
+let dailyDay = null;
+const dailyMonth = () => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+const hourlyEmps = () => snap.employees.filter(e => e.payType === 'hourly')
+  .concat(pendingEmps.filter(e => e.payType === 'hourly'));
+function renderDaily() {
+  const yr = now.getFullYear(), mo = now.getMonth(), mm = dailyMonth();
+  $('daily-title-sub').textContent = `${yr}년 ${mo + 1}월`;
+  if (!dailyDay) dailyDay = now.getDate();
+  const cal = $('dcal');
+  cal.innerHTML = '';
+  ['일','월','화','수','목','금','토'].forEach((h, i) =>
+    cal.insertAdjacentHTML('beforeend', `<div class="h ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${h}</div>`));
+  const first = new Date(yr, mo, 1).getDay();
+  const last = new Date(yr, mo + 1, 0).getDate();
+  for (let i = 0; i < first; i++) cal.appendChild(document.createElement('div'));
+  for (let d = 1; d <= last; d++) {
+    const wd = (first + d - 1) % 7;
+    const cls = (wd === 0 || HOLIDAYS.has(`${mm}-${String(d).padStart(2, '0')}`)) ? 'sun' : wd === 6 ? 'sat' : '';
+    const c = document.createElement('div');
+    c.className = 'd' + (d === dailyDay ? ' sel' : '');
+    if (hourlyEmps().some(e => draftFor(e, mm).days[d])) c.classList.add('filled');
+    c.innerHTML = `<span class="num ${cls}">${d}</span><small></small>`;
+    c.onclick = () => { dailyDay = d; renderDaily(); };
+    cal.appendChild(c);
+  }
+  $('daily-date-label').textContent = `${mo + 1}월 ${dailyDay}일 근무시간`;
+  $('daily-list').innerHTML = hourlyEmps().map((e, i) => {
+    const v = draftFor(e, mm).days[dailyDay] || '';
+    return `<div class="row" style="margin-bottom:8px;">
+      <span style="flex:1; font-weight:700; color:var(--ink);">${e.name}</span>
+      <input type="number" min="0" max="24" step="0.5" data-di="${i}" value="${v}" placeholder="0" style="width:90px;">
+      <span class="muted">시간</span></div>`;
+  }).join('') || '<p class="muted">시급제 직원이 없습니다.</p>';
+}
+$('btn-daily').onclick = () => { dailyDay = null; $('daily-msg').className = 'msg'; renderDaily(); navTo('v-daily'); };
+$('btn-daily-save').onclick = () => {
+  const mm = dailyMonth();
+  hourlyEmps().forEach((e, i) => {
+    const inp = $('daily-list').querySelector(`input[data-di="${i}"]`);
+    if (!inp) return;
+    const h = Math.min(24, Math.max(0, Number(inp.value) || 0));
+    const d = draftFor(e, mm);
+    if (h > 0) d.days[dailyDay] = h; else delete d.days[dailyDay];
+  });
+  persistDrafts();
+  renderDaily();
+  const m = $('daily-msg');
+  m.className = 'msg info';
+  m.textContent = `${now.getMonth() + 1}월 ${dailyDay}일 근무시간이 저장되었습니다. 직원별 달력에 반영됐어요.`;
+};
 
 // ---- 홈 3단 요약 ----
 // 억 단위 끊어 읽기: 143,280,000 → "1억 4,328만원"
@@ -1136,14 +1217,14 @@ function buildCal() {
   $('btn-apply').onclick = () => {
     const h = Math.min(24, Math.max(0, Number($('hrs').value) || 0));
     selDays.forEach(d => { if (h > 0) days[d] = h; else delete days[d]; });
-    selDays.clear(); renderCal();
+    selDays.clear(); renderCal(); persistDrafts();
   };
   $('btn-aadd').onclick = () => {
     const name = $('aname').value.trim(), amt = numOf($('aamt'));
     if (!name || amt <= 0 || allowances.length >= 10) return;
     if (/\d{6,}/.test(name)) return showMsg('err', '항목명에 긴 숫자는 넣을 수 없습니다.');
     allowances.push({ name, amount: amt });
-    $('aname').value = ''; $('aamt').value = ''; renderAllow();
+    $('aname').value = ''; $('aamt').value = ''; renderAllow(); persistDrafts();
   };
   $('btn-submit').onclick = submit;
 }
@@ -1190,7 +1271,7 @@ function renderAllow() {
     `<div class="arow"><span>${a.name}</span><span><b>${won(a.amount)}</b>
      <span class="del" data-i="${i}">삭제</span></span></div>`).join('');
   $('alist').querySelectorAll('.del').forEach(el =>
-    el.onclick = () => { allowances.splice(Number(el.dataset.i), 1); renderAllow(); });
+    el.onclick = () => { allowances.splice(Number(el.dataset.i), 1); renderAllow(); persistDrafts(); persistDrafts(); });
   renderInputSummary();
 }
 // 근무 집계 + 주휴수당 자동계산 (달력 입력 시): 일~토 주 단위로 15시간 이상이면
