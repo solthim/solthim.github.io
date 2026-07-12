@@ -1,5 +1,5 @@
 // 솔팀 데모 데이터 — 전부 가짜입니다. 실제 사업장·직원과 무관합니다.
-window.SOTHIM_DEMO = {
+window.SOLTHIM_DEMO = {
   "pin": "12345",
   "months": [
     "2026-05",
