@@ -312,7 +312,7 @@
           <p class="muted num" id="pub-info" style="margin-top:4px;"></p>
         </div>
       </div>
-      <div id="msel-sum" style="display:grid; grid-template-columns:repeat(4, 1fr); gap:6px; margin-bottom:12px;"></div>
+      <div id="msel-sum" style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px; margin-bottom:12px;"></div>
 
       <div class="hero">
         <p class="hl">이번 달 인건비 합계</p>
@@ -576,7 +576,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v16 (2026-07-12)';
+const APP_VER = 'v17 (2026-07-12)';
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
 const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
