@@ -254,8 +254,8 @@
           <h1 id="wp-name"></h1>
           <p class="muted num" id="pub-info" style="margin-top:4px;"></p>
         </div>
-        <select id="month-sel" style="width:auto; min-height:42px; padding:9px 12px; border-radius:999px; font-weight:700;"></select>
       </div>
+      <div id="msel-sum" style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;"></div>
 
       <div class="hero">
         <p class="hl">이번 달 인건비 합계</p>
@@ -320,7 +320,7 @@
       </div>
       <div class="card" style="padding:14px 16px;">
         <label style="margin:0 0 6px;">조회할 달</label>
-        <select id="sales-mm" style="width:100%;"></select>
+        <div id="sales-mm" style="display:grid; grid-template-columns:repeat(6, 1fr); gap:6px;"></div>
       </div>
       <div class="card"><p class="grp" style="margin-top:0;">매출</p><div id="sales-list"></div></div>
       <div class="card"><p class="grp" style="margin-top:0;">매입</p><div id="pur-list"></div></div>
@@ -588,13 +588,15 @@ function setDate(id, iso) {
 // ---- 인증 ----
 async function auth() {
   const res = await api({});
-  if (res) { $('v-pin').classList.add('hidden'); $('v-main').classList.remove('hidden'); }
+  if (res) {
+    sessionStorage.setItem('solthim_pin', pin);   // 탭이 열려 있는 동안 재입력 생략
+    $('v-pin').classList.add('hidden'); $('v-main').classList.remove('hidden');
+  }
 }
 async function api(extra) {
   pin = $('pin').value.trim() || pin;
   const msg = $('pin-msg'); msg.className = 'msg';
   if (DEMO) {
-    if (pin !== DEMO.pin) { msg.className = 'msg err'; msg.textContent = '번호가 맞지 않습니다. (데모 PIN: ' + DEMO.pin + ')'; return null; }
     months = DEMO.months;
     snap = DEMO.snapshots[extra.month || months[months.length - 1]];
     renderSummary();
@@ -604,7 +606,11 @@ async function api(extra) {
     const r = await fetch('/api/data', { method: 'POST', headers: {'Content-Type': 'application/json'},
       body: JSON.stringify(Object.assign({ token, pin }, extra)) });
     const j = await r.json();
-    if (!r.ok) { msg.className = 'msg err'; msg.textContent = j.error || '오류가 발생했습니다.'; return null; }
+    if (!r.ok) {
+      sessionStorage.removeItem('solthim_pin');
+      msg.className = 'msg err'; msg.textContent = j.error || '오류가 발생했습니다.';
+      return null;
+    }
     months = j.months; snap = j.data;
     renderSummary();
     return j;
@@ -615,14 +621,30 @@ async function api(extra) {
 }
 $('btn-auth').onclick = auth;
 $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') auth(); });
+// 확정(운영) 전 임시: 데모는 PIN 없이 바로 입장, 서버 모드는 성공한 PIN을 탭에 기억
+if (DEMO) {
+  pin = DEMO.pin;
+  auth();
+} else {
+  const savedPin = sessionStorage.getItem('solthim_pin');
+  if (savedPin) { pin = savedPin; $('pin').value = savedPin; auth(); }
+}
 
 // ---- 인건비 요약 (홈) ----
 function renderSummary() {
   $('wp-name').textContent = snap.workplace.name;
   const [y, m] = snap.targetMonth.split('-');
   $('pub-info').textContent = `${y}년 ${Number(m)}월 인건비 · ${snap.publishedAt.slice(0, 10)} 발행`;
-  const sel = $('month-sel');
-  sel.innerHTML = months.map(mm => `<option value="${mm}" ${mm === snap.targetMonth ? 'selected' : ''}>${mm.replace('-', '.')}</option>`).join('');
+  const box = $('msel-sum');
+  box.innerHTML = '';
+  months.forEach(mm => {
+    const b = document.createElement('button');
+    b.className = 'mbtn' + (mm === snap.targetMonth ? ' on' : '');
+    b.style.padding = '9px 16px';
+    b.textContent = `${Number(mm.slice(5))}월 발행분`;
+    b.onclick = () => api({ month: mm });
+    box.appendChild(b);
+  });
   $('t-month').textContent = won(snap.totals.monthPay);
   $('t-sub').textContent = `올해 누계 ${won(snap.totals.yearPay)}`;
   $('st-all').textContent = snap.totals.count;
@@ -652,7 +674,6 @@ function renderSummary() {
     el.onclick = () => enterInput(snap.employees[Number(el.dataset.i)]));
   renderHome();
 }
-$('month-sel').onchange = () => api({ month: $('month-sel').value });
 
 // ---- 직원 추가 (사원정보 입력) ----
 let pendingEmps = [], addType = 'hourly', addIncome = '근로';
@@ -816,12 +837,21 @@ const lines = items => items.map(it =>
 function renderSales() {
   $('sales-asof').textContent = `자료 기준일 ${snap.sales.asOf} · 공급대가 기준`;
   const months = Object.keys(snap.sales.byMonth).sort();
-  const sel = $('sales-mm');
-  sel.innerHTML = months.map(mm =>
-    `<option value="${mm}">${mm.slice(0, 4)}년 ${Number(mm.slice(5))}월</option>`).join('');
-  sel.value = months[months.length - 1];
-  sel.onchange = () => renderSalesMonth(sel.value);
-  renderSalesMonth(sel.value);
+  const box = $('sales-mm');
+  box.innerHTML = '';
+  months.forEach(mm => {
+    const b = document.createElement('button');
+    b.className = 'mbtn';
+    b.textContent = `${Number(mm.slice(5))}월`;
+    b.onclick = () => {
+      box.querySelectorAll('.mbtn').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      renderSalesMonth(mm);
+    };
+    box.appendChild(b);
+  });
+  box.lastChild.classList.add('on');
+  renderSalesMonth(months[months.length - 1]);
 }
 function renderSalesMonth(mm) {
   const s = snap.sales.byMonth[mm], p = snap.purchases.byMonth[mm];
