@@ -201,6 +201,7 @@
   .sbadge { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 3px 9px;
             border-radius: 999px; margin-top: 6px; white-space: nowrap; }
   .sbadge.sent { color: #157a3d; background: rgba(120, 200, 120, .22); }
+  .sbadge.ready { color: var(--blue-deep); background: rgba(91, 141, 239, .18); }
   .sbadge.unsent { color: #9a7b1a; background: rgba(250, 199, 117, .30); }
 
   .sumline { display: flex; justify-content: space-between; font-size: 13.5px; padding: 4px 0; }
@@ -588,9 +589,25 @@
           <div class="sumline total"><span>계산된 급여액</span><span id="s-total"></span></div>
         </div>
         <div class="msg" id="in-msg"></div>
-        <p class="muted" style="margin-top:10px;">입력 내용은 자동 저장됩니다. 인건비 화면의 '전달하기' 버튼으로 한 번에 제출해 주세요.
-           달력에서 입력된 날짜에 0시간을 적용하면 지워집니다.</p>
+        <button id="btn-in-done" class="primary" style="width:100%; margin-top:12px;">✓ 이 직원 작성 완료</button>
+        <p class="muted" style="margin-top:10px;">급여를 다 입력했으면 <b>[작성 완료]</b>를 누르세요. 모든 직원을 완료하면
+           인건비 화면에서 한 번에 전달할 수 있습니다. (입력 내용은 자동 저장됩니다)</p>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- 미입력 직원 퇴사 확인 모달 -->
+<div id="retire-modal" class="hidden" style="position:fixed; inset:0; z-index:200;
+     background:rgba(30,42,66,.55); display:flex; align-items:center; justify-content:center; padding:22px;">
+  <div class="card" style="max-width:360px; width:100%; background:#fff;">
+    <p id="retire-q" style="font-weight:700; font-size:15.5px; line-height:1.5; margin-bottom:14px;"></p>
+    <label style="font-weight:400;"><span id="retire-mm"></span>월 며칠에 퇴사했나요? (일자만)</label>
+    <input id="retire-day" inputmode="numeric" maxlength="2" placeholder="일 (예: 25)" style="text-align:center;">
+    <div class="msg" id="retire-msg"></div>
+    <div class="row" style="margin-top:14px;">
+      <button id="retire-no" class="plain" style="flex:1;">아니요, 급여 입력할게요</button>
+      <button id="retire-yes" class="primary" style="flex:1;">퇴사 처리</button>
     </div>
   </div>
 </div>
@@ -639,7 +656,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v40 (2026-07-13)';
+const APP_VER = 'v41 (2026-07-13)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -852,9 +869,12 @@ function renderSummary() {
   const moNum = Number(thisMonth.slice(5));
   $('emp-list').innerHTML = emps.map((e, i) => {
     const sentIso = sentMap[e.name + '@' + thisMonth];
+    const dr = drafts[e.name + '@' + thisMonth];
     const badge = firmMode ? '' : (sentIso
       ? `<span class="sbadge sent">${moNum}월 전달함 · ${sentWhen(sentIso)}</span>`
-      : `<span class="sbadge unsent">${moNum}월 미전달</span>`);
+      : (dr && dr.done)
+      ? `<span class="sbadge ready">${moNum}월 작성 완료${dr.retired ? ' (퇴사)' : ''}</span>`
+      : `<span class="sbadge unsent">${moNum}월 작성 필요</span>`);
     return `<div class="emp" data-i="${i}">
       <div class="mid">
         <div><span class="namebox">${e.name}</span></div>
@@ -908,7 +928,51 @@ function renderPending() {
   $('pend-list').querySelectorAll('.emp').forEach(el =>
     el.onclick = () => enterInput(pendingEmps[Number(el.dataset.i)]));
 }
-$('btn-submit-all').onclick = async () => {
+// 전달 전 게이트: 이번 달 모든 직원이 '작성 완료'(또는 이미 전달)여야 전달 진행.
+// 미완료(급여 미입력) 직원이 있으면 지난달 퇴사 여부를 물어봄.
+let retireQueue = [], retireIdx = 0;
+$('btn-submit-all').onclick = () => {
+  const thisMonth = dailyMonth();
+  const smap = loadJS(SENTMAP_KEY, {});
+  const incomplete = snap.employees.concat(pendingEmps).filter(e => {
+    const d = drafts[e.name + '@' + thisMonth];
+    return !(d && d.done) && !smap[e.name + '@' + thisMonth];
+  });
+  if (incomplete.length) { retireQueue = incomplete; retireIdx = 0; showRetire(); return; }
+  doSubmit();
+};
+function showRetire() {
+  if (retireIdx >= retireQueue.length) { $('retire-modal').classList.add('hidden'); doSubmit(); return; }
+  const e = retireQueue[retireIdx];
+  const [y, mo] = dailyMonth().split('-');
+  const prevMo = Number(mo) - 1 >= 1 ? Number(mo) - 1 : 12;
+  $('retire-q').textContent = `${e.name} 님은 ${Number(mo)}월 급여가 입력되지 않았어요. 지난달(${prevMo}월)에 퇴사하셨나요?`;
+  $('retire-mm').textContent = prevMo;
+  $('retire-day').value = '';
+  $('retire-msg').className = 'msg';
+  $('retire-modal').classList.remove('hidden');
+}
+$('retire-yes').onclick = () => {
+  const e = retireQueue[retireIdx];
+  const [y, mo] = dailyMonth().split('-');
+  const prevMoNum = Number(mo) - 1;
+  const prevY = prevMoNum >= 1 ? Number(y) : Number(y) - 1;
+  const prevMo = prevMoNum >= 1 ? prevMoNum : 12;
+  const last = new Date(prevY, prevMo, 0).getDate();
+  const day = Number($('retire-day').value);
+  if (!(day >= 1 && day <= last)) { $('retire-msg').className = 'msg err'; $('retire-msg').textContent = `${prevMo}월에 없는 날짜입니다.`; return; }
+  const leaveDate = `${prevY}-${String(prevMo).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  const d = draftFor(e, dailyMonth());
+  d.done = true; d.retired = true; d.leave = leaveDate;
+  persistDrafts();
+  retireIdx++; showRetire();
+};
+$('retire-no').onclick = () => {
+  const e = retireQueue[retireIdx];
+  $('retire-modal').classList.add('hidden');
+  enterInput(e);   // 그 직원 근무 입력 화면으로 (급여 입력 후 [작성 완료])
+};
+async function doSubmit() {
   const m = $('sum-msg');
   const note = $('batch-note').value.trim();
   if (/\d{6,}/.test(note)) { m.className = 'msg err'; m.textContent = '특이사항 메모에 주민번호로 보이는 숫자가 있어 전달할 수 없습니다.'; return; }
@@ -939,6 +1003,14 @@ $('btn-submit-all').onclick = async () => {
           allowances: d.allowances, memo: d.memo,
           hireDate: d.hire || null, leaveDate: d.leave || null });
       }
+    }
+  });
+  // 지난달 퇴사로 처리한 직원 — 급여는 없고 퇴사일만 전달 (담당자가 퇴사 반영)
+  snap.employees.concat(pendingEmps).forEach(e => {
+    const d = drafts[e.name + '@' + dailyMonth()];
+    if (d && d.retired && d.leave) {
+      entries.push({ targetMonth: dailyMonth(), employeeName: e.name, payType: 'monthly', newEmployee: !!e.pending,
+        monthlyPay: 0, retired: true, leaveDate: d.leave, absentDays: [], allowances: [], memo: d.memo || '' });
     }
   });
   if (badMemo) { m.className = 'msg err'; m.textContent = `${badMemo} 님의 메모에 주민번호로 보이는 숫자가 있어 전달할 수 없습니다.`; return; }
@@ -1596,6 +1668,22 @@ function buildCal() {
   $('mode-total').onclick = () => { inputMode = 'total'; updateForm(); };
   $('pt-monthly').onclick = () => { payMode = 'monthly'; updateForm(); };
   $('pt-hourly').onclick = () => { payMode = 'hourly'; updateForm(); };
+  $('btn-in-done').onclick = () => {
+    if (!currentEmp) return;
+    saveDraft();
+    const d = draftFor(currentEmp);
+    const total = Number(($('s-total').textContent || '').replace(/[^0-9]/g, '')) || 0;   // 계산된 급여액(표시 텍스트)
+    const leaveThis = (d.leave || '').startsWith(curMonth());
+    if (total <= 0 && !leaveThis) {
+      showMsg('err', '급여를 입력해 주세요. 이 직원이 퇴사했다면 위 [퇴사한 경우]를 켜고 마지막 근무일을 넣으면 됩니다.');
+      return;
+    }
+    d.done = true; d.retired = false;   // 정상 작성 완료
+    persistDrafts();
+    renderSummary();   // 인건비 화면 배지 갱신
+    showMsg('info', currentEmp.name + ' 님 작성을 완료했습니다.');
+    setTimeout(() => history.back(), 450);
+  };
   $('btn-leave-tog').onclick = () => {
     const on = !$('btn-leave-tog').classList.contains('on');
     setLeaveTog(on);
