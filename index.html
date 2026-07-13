@@ -198,6 +198,10 @@
               padding: 4px 11px; border-radius: 999px; }
   #btn-leave-tog.on { background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700; }
   #in-leave-day:disabled { opacity: .45; }
+  .sbadge { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 3px 9px;
+            border-radius: 999px; margin-top: 6px; white-space: nowrap; }
+  .sbadge.sent { color: #157a3d; background: rgba(120, 200, 120, .22); }
+  .sbadge.unsent { color: #9a7b1a; background: rgba(250, 199, 117, .30); }
 
   .sumline { display: flex; justify-content: space-between; font-size: 13.5px; padding: 4px 0; }
   .sumline b, .sumline span:last-child { font-variant-numeric: tabular-nums; }
@@ -635,7 +639,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v39 (2026-07-13)';
+const APP_VER = 'v40 (2026-07-13)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -647,7 +651,7 @@ try {
 } catch (e) {}
 const DEMO = window.SOLTHIM_DEMO || null;
 let pin = '', birth = '', months = [], snap = null;
-const SENT_KEY = 'solthim_sent', INV_KEY = 'solthim_slip_invalid';
+const SENT_KEY = 'solthim_sent', INV_KEY = 'solthim_slip_invalid', SENTMAP_KEY = 'solthim_sentmap';
 const loadJS = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
 const saveJS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
@@ -729,19 +733,19 @@ async function auth() {
 // 전송/조회 공통 — 모바일 네트워크 순간 끊김이나 보안 검문 페이지를 만나면 자동 재시도
 // (응답이 JSON이 아니면 = 데이터가 아니라 검문/오류 페이지 → 실패로 보고 재시도)
 async function fetchJSON(url, opts, tries = 3) {
-  let lastErr;
+  let diag = '';
   for (let i = 0; i < tries; i++) {
     try {
       const r = await fetch(url, opts);
       const ct = r.headers.get('content-type') || '';
-      if (!ct.includes('json')) throw new Error('non-json');
+      if (!ct.includes('json')) { diag = '검문/오류 페이지 ' + r.status; throw new Error(diag); }
       return r;   // 정상(2xx)이든 오류(4xx/5xx)든 JSON이면 호출부에서 처리
     } catch (e) {
-      lastErr = e;
+      if (!diag) diag = '네트워크 ' + (e.message || e).toString().slice(0, 40);
       if (i < tries - 1) await new Promise(res => setTimeout(res, 700 * (i + 1)));
     }
   }
-  throw lastErr;
+  const err = new Error(diag); err.diag = diag; throw err;
 }
 async function api(extra) {
   pin = $('pin').value.trim() || pin;
@@ -843,12 +847,20 @@ function renderSummary() {
   });
   if (invChanged) saveJS(INV_KEY, inv);
   const emps = [...snap.employees].sort((a, b) => a.name.localeCompare(b.name, 'ko'));
+  const sentMap = loadJS(SENTMAP_KEY, {});
+  const thisMonth = dailyMonth();
+  const moNum = Number(thisMonth.slice(5));
   $('emp-list').innerHTML = emps.map((e, i) => {
+    const sentIso = sentMap[e.name + '@' + thisMonth];
+    const badge = firmMode ? '' : (sentIso
+      ? `<span class="sbadge sent">${moNum}월 전달함 · ${sentWhen(sentIso)}</span>`
+      : `<span class="sbadge unsent">${moNum}월 미전달</span>`);
     return `<div class="emp" data-i="${i}">
       <div class="mid">
         <div><span class="namebox">${e.name}</span></div>
         <div class="chips">${typeChip(e.payType)}${insChip(e.insurance)}</div>
         <p class="ytd num">올해 총급여 ${won(e.yearPay)}</p>
+        ${badge}
       </div>
       <div class="right"><span class="pay">${won(e.monthPay)}</span>${firmMode ? '' : '<span class="arrow">›</span>'}${e.payslip ? (inv[e.name + '@' + snap.targetMonth] ? '<div><span class="slipwait">명세서 준비 중</span></div>' : '<div><span class="slipbtn">명세서</span></div>') : ''}</div>
     </div>`;
@@ -862,6 +874,10 @@ function renderSummary() {
     });
   renderSentLog();
   renderHome();
+}
+function sentWhen(iso) {
+  const d = new Date(iso);
+  return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 function renderSentLog() {
   const log = loadJS(SENT_KEY, []);
@@ -935,6 +951,9 @@ $('btn-submit-all').onclick = async () => {
     const log = loadJS(SENT_KEY, []);
     log.unshift({ t: now, mms, names });
     saveJS(SENT_KEY, log.slice(0, 5));
+    const smap = loadJS(SENTMAP_KEY, {});
+    entries.forEach(en => { smap[en.employeeName + '@' + en.targetMonth] = now; });
+    saveJS(SENTMAP_KEY, smap);
     const inv = loadJS(INV_KEY, {});
     let hid = 0;
     entries.forEach(en => {
@@ -964,7 +983,7 @@ $('btn-submit-all').onclick = async () => {
     const j = await r.json();
     if (r.ok) { m.className = 'msg info'; m.textContent = doneMsg(); }
     else { m.className = 'msg err'; m.textContent = j.error || '오류가 발생했습니다.'; }
-  } catch (e) { m.className = 'msg err'; m.textContent = '연결이 잠시 불안정합니다. 다시 [전달하기]를 눌러 주세요.'; }
+  } catch (e) { m.className = 'msg err'; m.textContent = '연결이 잠시 불안정합니다. 다시 [전달하기]를 눌러 주세요. [' + (e.diag || e.message || '?') + ']'; }
 };
 $('btn-add-emp').onclick = () => { $('btn-add-emp').classList.add('hidden'); $('add-form').classList.remove('hidden'); };
 $('btn-add-cancel').onclick = () => { $('add-form').classList.add('hidden'); $('btn-add-emp').classList.remove('hidden'); };
