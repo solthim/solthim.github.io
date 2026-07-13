@@ -656,7 +656,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v41 (2026-07-13)';
+const APP_VER = 'v42 (2026-07-13)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -668,7 +668,7 @@ try {
 } catch (e) {}
 const DEMO = window.SOLTHIM_DEMO || null;
 let pin = '', birth = '', months = [], snap = null;
-const SENT_KEY = 'solthim_sent', INV_KEY = 'solthim_slip_invalid', SENTMAP_KEY = 'solthim_sentmap';
+const SENT_KEY = 'solthim_sent', INV_KEY = 'solthim_slip_invalid', SENTMAP_KEY = 'solthim_sentmap', FP_KEY = 'solthim_sentfp';
 const loadJS = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) || d; } catch (e) { return d; } };
 const saveJS = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} };
 
@@ -895,6 +895,14 @@ function renderSummary() {
   renderSentLog();
   renderHome();
 }
+// 전달 내용 '지문' — 급여에 영향 주는 필드만 모아 문자열화 (변경 여부 판단용)
+function entryFP(en) {
+  return JSON.stringify({
+    p: en.payType, m: en.monthlyPay || 0, h: en.hours || 0, w: en.hourlyWage || 0,
+    d: en.days || null, a: en.allowances || [], ab: en.absentDays || [],
+    l: en.leaveDate || '', r: !!en.retired, mm: en.memo || ''
+  });
+}
 function sentWhen(iso) {
   const d = new Date(iso);
   return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
@@ -1015,6 +1023,14 @@ async function doSubmit() {
   });
   if (badMemo) { m.className = 'msg err'; m.textContent = `${badMemo} 님의 메모에 주민번호로 보이는 숫자가 있어 전달할 수 없습니다.`; return; }
   if (!entries.length && !note) { m.className = 'msg err'; m.textContent = '전달할 내용이 없습니다. 직원을 눌러 근무시간이나 월급을 먼저 입력해 주세요.'; return; }
+  // 직전 전달 이후 바뀐 게 하나도 없으면 막음 (같은 내용 중복 전달 방지)
+  const fpMap = loadJS(FP_KEY, {});
+  const anyChanged = entries.some(en => entryFP(en) !== fpMap[en.employeeName + '@' + en.targetMonth]);
+  if (entries.length && !anyChanged && !note) {
+    m.className = 'msg err';
+    m.textContent = '직전에 전달한 내용과 같습니다. 급여를 수정한 뒤 전달해 주세요.';
+    return;
+  }
   // 전달 성공 처리: 보낸 기록 + 명세서 무효화(발행월 급여를 변경한 직원)
   const doneMsg = () => {
     const now = new Date().toISOString();
@@ -1026,6 +1042,9 @@ async function doSubmit() {
     const smap = loadJS(SENTMAP_KEY, {});
     entries.forEach(en => { smap[en.employeeName + '@' + en.targetMonth] = now; });
     saveJS(SENTMAP_KEY, smap);
+    const fpm = loadJS(FP_KEY, {});
+    entries.forEach(en => { fpm[en.employeeName + '@' + en.targetMonth] = entryFP(en); });
+    saveJS(FP_KEY, fpm);
     const inv = loadJS(INV_KEY, {});
     let hid = 0;
     entries.forEach(en => {
