@@ -635,11 +635,16 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v38 (2026-07-13)';
+const APP_VER = 'v39 (2026-07-13)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
-const token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
+let token = (location.pathname.match(/^\/s\/([A-Za-z0-9]+)$/) || [])[1] || '';
+// 홈 화면 앱은 "/"로 열려 토큰이 없음 → 이 기기가 마지막에 정상 접속한 토큰으로 복구
+try {
+  if (token) localStorage.setItem('solthim_last', token);
+  else token = localStorage.getItem('solthim_last') || '';
+} catch (e) {}
 const DEMO = window.SOLTHIM_DEMO || null;
 let pin = '', birth = '', months = [], snap = null;
 const SENT_KEY = 'solthim_sent', INV_KEY = 'solthim_slip_invalid';
@@ -778,7 +783,14 @@ $('bday').addEventListener('keydown', e => { if (e.key === 'Enter') auth(); });
 {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(AUTH_KEY) || 'null'); } catch (e) {}
-  if (saved && saved.p) { pin = saved.p; birth = saved.b || ''; auth(); }
+  if (!token && !DEMO) {
+    // 토큰도 없고 이 기기에 저장된 것도 없음 → 담당자 링크로 접속해야 함
+    document.querySelector('#v-pin .card').innerHTML =
+      '<div style="margin-bottom:16px;"><span class="logo">솔</span></div>'
+      + '<h1 style="margin-bottom:10px;">우리가게 장부</h1>'
+      + '<p class="muted" style="line-height:1.6;">담당자가 카카오톡으로 보내드린 <b>링크</b>로 접속해 주세요.<br>'
+      + '한 번 접속하면 다음부터는 홈 화면 아이콘으로 바로 열립니다.</p>';
+  } else if (saved && saved.p) { pin = saved.p; birth = saved.b || ''; auth(); }
   else if (DEMO) {
     const tip = document.createElement('p');
     tip.className = 'muted';
@@ -1760,11 +1772,7 @@ function showMsg(kind, text) { const m = $('in-msg'); m.className = 'msg ' + kin
 // ==== PWA ====
 // 서비스 워커 등록 (설치 가능 조건)
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
-// 토큰 링크로 접속했으면 설치 후에도 같은 링크가 열리도록 manifest에 알려줌 (서버가 처리)
-if (token) {
-  const mf = document.querySelector('link[rel="manifest"]');
-  if (mf) mf.href = '/manifest.json?start=' + encodeURIComponent('/s/' + token);
-}
+// 홈 화면 설치 시 시작 주소는 "/" 고정 — 앱이 기기에 저장된 토큰으로 자동 복귀하므로 토큰을 URL에 넣지 않음
 
 const UA = navigator.userAgent;
 const isKakao = /KAKAOTALK/i.test(UA);
