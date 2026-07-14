@@ -336,10 +336,6 @@
           </div>
           <button class="primary" id="btn-submit-all" style="flex:none; padding:12px 20px; white-space:nowrap;">전달하기</button>
         </div>
-        <div id="note-wrap">
-          <label style="margin-top:12px;">특이사항 메모 (선택 — 전달하기와 함께 담당자에게 갑니다)</label>
-          <input id="batch-note" maxlength="100" placeholder="예: 김알바 15일 퇴사했어요. 보너스 있어요.">
-        </div>
       </div>
       <div class="msg" id="sum-msg"></div>
       <p class="muted num hidden" id="sent-log" style="margin:8px 6px 10px; font-size:12px; white-space:pre-line;"></p>
@@ -578,8 +574,6 @@
           <input id="aamt" inputmode="numeric" placeholder="금액" style="width:110px;">
           <button id="btn-aadd" class="plain" style="flex:none; white-space:nowrap; padding:13px 20px;">추가</button>
         </div>
-        <label>메모 (선택)</label>
-        <input id="memo" maxlength="50" placeholder="직원 특이사항 적어주세요 (주민번호 제외)">
         <div style="background:rgba(91,141,239,.10); border-radius:16px; padding:14px 16px; margin:16px 0 0;">
           <div class="sumline hidden" id="row-mpay"><span id="l-mpay">월급</span><b id="s-mpay"></b></div>
           <div class="sumline hidden" id="row-prorate"><span>월급 일할계산</span><b id="s-prorate"></b></div>
@@ -656,7 +650,7 @@
 <script src="demo-data.js"></script>
 <script>
 'use strict';
-const APP_VER = 'v42 (2026-07-13)';
+const APP_VER = 'v43 (2026-07-13)';
 const MIN_WAGE = 10320;   // 최저시급 기본값
 const $ = id => document.getElementById(id);
 const won = n => n.toLocaleString('ko-KR') + '원';
@@ -749,7 +743,7 @@ async function auth() {
 }
 // 전송/조회 공통 — 모바일 네트워크 순간 끊김이나 보안 검문 페이지를 만나면 자동 재시도
 // (응답이 JSON이 아니면 = 데이터가 아니라 검문/오류 페이지 → 실패로 보고 재시도)
-async function fetchJSON(url, opts, tries = 3) {
+async function fetchJSON(url, opts, tries = 4) {
   let diag = '';
   for (let i = 0; i < tries; i++) {
     try {
@@ -759,7 +753,8 @@ async function fetchJSON(url, opts, tries = 3) {
       return r;   // 정상(2xx)이든 오류(4xx/5xx)든 JSON이면 호출부에서 처리
     } catch (e) {
       if (!diag) diag = '네트워크 ' + (e.message || e).toString().slice(0, 40);
-      if (i < tries - 1) await new Promise(res => setTimeout(res, 700 * (i + 1)));
+      // 서버가 한동안 놀다 깨어날 때 첫 요청이 느려 502가 날 수 있어 넉넉히 기다렸다 재시도
+      if (i < tries - 1) await new Promise(res => setTimeout(res, 900 * (i + 1)));
     }
   }
   const err = new Error(diag); err.diag = diag; throw err;
@@ -848,7 +843,6 @@ function renderSummary() {
   // 확인형 사업장(workplace.laborInput === 'firm'): 담당자가 급여 확정 — 입력 UI 숨김, 열람·명세서만
   const firmMode = snap.workplace && snap.workplace.laborInput === 'firm';
   $('btn-submit-all').classList.toggle('hidden', firmMode);
-  $('note-wrap').classList.toggle('hidden', firmMode);
   $('btn-daily').classList.toggle('hidden', firmMode);
   $('add-card').classList.toggle('hidden', firmMode);
   $('sum-guide').textContent = firmMode
@@ -867,9 +861,13 @@ function renderSummary() {
   const sentMap = loadJS(SENTMAP_KEY, {});
   const thisMonth = dailyMonth();
   const moNum = Number(thisMonth.slice(5));
+  let heroSum = 0;
   $('emp-list').innerHTML = emps.map((e, i) => {
     const sentIso = sentMap[e.name + '@' + thisMonth];
     const dr = drafts[e.name + '@' + thisMonth];
+    const dpay = firmMode ? null : draftPay(e, thisMonth);
+    const shown = dpay != null ? dpay : e.monthPay;
+    heroSum += shown;
     const badge = firmMode ? '' : (sentIso
       ? `<span class="sbadge sent">${moNum}월 전달함 · ${sentWhen(sentIso)}</span>`
       : (dr && dr.done)
@@ -882,7 +880,7 @@ function renderSummary() {
         <p class="ytd num">올해 총급여 ${won(e.yearPay)}</p>
         ${badge}
       </div>
-      <div class="right"><span class="pay">${won(e.monthPay)}</span>${firmMode ? '' : '<span class="arrow">›</span>'}${e.payslip ? (inv[e.name + '@' + snap.targetMonth] ? '<div><span class="slipwait">명세서 준비 중</span></div>' : '<div><span class="slipbtn">명세서</span></div>') : ''}</div>
+      <div class="right"><span class="pay">${won(shown)}</span>${firmMode ? '' : '<span class="arrow">›</span>'}${e.payslip ? (inv[e.name + '@' + snap.targetMonth] ? '<div><span class="slipwait">명세서 준비 중</span></div>' : '<div><span class="slipbtn">명세서</span></div>') : ''}</div>
     </div>`;
   }).join('');
   $('emp-list').querySelectorAll('.emp').forEach(el =>
@@ -892,8 +890,36 @@ function renderSummary() {
       if (firmMode) return;
       enterInput(emp);
     });
+  if (!firmMode) $('t-month').textContent = won(heroSum);
   renderSentLog();
   renderHome();
+}
+// 사장님이 입력(draft)한 이번 달 급여를 화면 표시용으로 계산 — 발행값 대신 보여줌
+function draftPay(emp, mm) {
+  const d = drafts[emp.name + '@' + mm];
+  if (!d) return null;
+  const allowSum = (d.allowances || []).reduce((s, a) => s + a.amount, 0);
+  let type = d.type;
+  if (type === 'monthly' && !d.mpay && Object.keys(d.days || {}).length > 0) type = 'hourly';
+  if (type === 'hourly') {
+    const w = calcHours(d.days || {}, mm, 0);
+    if (!w.hours && !allowSum) return null;
+    return Math.round(w.total * (d.wage || MIN_WAGE)) + allowSum;
+  }
+  if (!d.mpay) return null;
+  const y = Number(mm.slice(0, 4)), mo = Number(mm.slice(5, 7));
+  const monthDays = new Date(y, mo, 0).getDate();
+  const pad = n => (n < 10 ? '0' : '') + n;
+  const mStart = mm + '-01', mEnd = mm + '-' + pad(monthDays);
+  let start = 1, end = monthDays;
+  const hire = d.hire || '', leave = d.leave || '';
+  if (hire) { if (hire > mEnd) return allowSum; if (hire >= mStart) start = Number(hire.slice(8, 10)); }
+  if (leave) { if (leave < mStart) return allowSum; if (leave <= mEnd) end = Number(leave.slice(8, 10)); }
+  const inDays = Math.max(0, end - start + 1);
+  const absent = (d.absent || []).filter(dd => dd >= start && dd <= end).length;
+  const eff = Math.max(0, inDays - absent);
+  const pay = eff >= monthDays ? d.mpay : Math.floor(d.mpay * eff / monthDays);
+  return pay + allowSum;
 }
 // 전달 내용 '지문' — 급여에 영향 주는 필드만 모아 문자열화 (변경 여부 판단용)
 function entryFP(en) {
@@ -982,7 +1008,7 @@ $('retire-no').onclick = () => {
 };
 async function doSubmit() {
   const m = $('sum-msg');
-  const note = $('batch-note').value.trim();
+  const note = '';   // 특이사항 메모 폐지 (카톡으로 전달)
   if (/\d{6,}/.test(note)) { m.className = 'msg err'; m.textContent = '특이사항 메모에 주민번호로 보이는 숫자가 있어 전달할 수 없습니다.'; return; }
   const entries = [];
   let badMemo = null;
@@ -1138,7 +1164,7 @@ function saveDraft() {
   const d = draftFor(currentEmp);
   d.type = payMode; d.restOpt = restOpt;
   d.wage = numOf($('wage')); d.mpay = numOf($('mpay'));
-  d.memo = $('memo').value; d.mode = inputMode;
+  d.mode = inputMode;
   d.hire = getDate('in-hire');   // 퇴사일(d.leave)은 일자 입력 핸들러가 직접 관리
   persistDrafts();
 }
@@ -1159,7 +1185,6 @@ function loadDraftIntoUI() {
   selDays.clear();
   $('wage').value = d.wage ? d.wage.toLocaleString('ko-KR') : '';
   $('mpay').value = d.mpay ? d.mpay.toLocaleString('ko-KR') : '';
-  $('memo').value = d.memo;
   setDate('in-hire', d.hire);
   const lv = d.leave || '';
   const leaveThisMonth = lv.startsWith(curMonth());
